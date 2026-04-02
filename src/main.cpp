@@ -1,44 +1,97 @@
+#include <SoftwareSerial.h>
 #include <Arduino.h>
+#include <Wire.h>
 #include "Sputnik_Identity.hpp"
 #include "BMP280.hpp"
 #include "MPU6050.hpp"
 #include "GPS_PA6H.hpp"
 #include "Xbee_S2C.hpp"
 #include "MicroSD.hpp"
-#include <Wire.h>
 
-
+// --- INTERRUTTORE DI MISSIONE ---
+#define MODO_TEST // %%%%%%%%%%%%Commenta questa riga per il lancio reale%%%%%%%%%%%%%
 
 Telemetry current_data;
-
-FSM currentState = STATE_IDLE; //inizializzazione stato missione
-
+FSM currentState = STATE_IDLE; 
 
 void setup() {
-    Serial.begin(9600); // Apre la comunicazione seriale per vedere i dati a schermo
-    Wire.begin();
-    while (!Serial); // Attende che la porta seriale sia pronta (solo per test)
+    // 1. Inizializzazione Hardware Universale
+    Wire.begin(); 
+    Serial.begin(9600); 
 
-    Serial.println("--- SPUTNIK_1: TEST SISTEMI ---");
-
-    if (!init_BMP280()) {
-        Serial.println("AVVISO: BMP280 non risponde.");
+    #ifdef MODO_TEST
+        // 2. Logica specifica per il TEST (PC)
+        while (!Serial); // Aspetta che si accenda il monitor seriale
+        Serial.println("--- SPUTNIK-33cl: SYSTEM CHECK (TEST) ---");
+        if (!init_GPS()) {
+            Serial.println("AVVISO: GPS non risponde.");
+        } else {
+            Serial.println("GPS: Inizializzato (9600 baud).");
+        }
         
-    } else {
-        Serial.println("BME280 inizializzato con successo.");
-    }
+        if (!init_BMP280()) {
+            Serial.println("ERRORE CRITICO: BMP280 non trovato!");
+        } else {
+            Serial.println("BMP280: OK");
+        }
+
+        if(!init_MPU6050()) {
+            Serial.println("ERRORE: MPU6050 NON TROVATO");
+        } else {
+            Serial.println("MPU6050: OK");
+        }
+    #else
+        // 3. Logica specifica per il LANCIO (XBee/Autonomo)
+        delay(2000); // Pausa di sicurezza per stabilizzare l'elettronica
+       // init_BMP280(); // Inizializzazione
+        init_GPS(); //Inizializzazione
+    #endif
 }
+
+unsigned long lastTelemetryTime = 0;
 
 void loop() {
-    read_BMP280(); 
+    update_GPS_data();
+    // Lettura dati (Sempre attiva)
+    read_BMP280();//&&&&&&&&&&&&&
+    read_MPU6050();
+    // Qui aggiungeremo read_MPU6050() e update_GPS_data() e il resto dei sensori
 
-    // Stampiamo i risultati per vederli
-    Serial.print("Altitudine: ");
-    Serial.print(current_data.ALTITUDE);
-    Serial.print(" m | Temp: ");
-    Serial.print(current_data.TEMPERATURE);
-    Serial.println(" *C");
+    // 2. INVIO DATI OGNI SECONDO (1000ms)
+    if (millis() - lastTelemetryTime >= 1000) {
+        lastTelemetryTime = millis(); // Resetta il timer
 
-    delay(1000);  
+    #ifdef MODO_TEST
+        
+        Serial.print("Alt: "); Serial.print(current_data.ALTITUDE);
+        Serial.print(" m | Temp: "); Serial.print(current_data.TEMPERATURE);
+        Serial.print(" | Lat: "); Serial.print(current_data.GPS_LATITUDE, 6); // 6 decimali per precisione
+        Serial.print(" | Lon: "); Serial.print(current_data.GPS_LONGITUDE, 6);
+        Serial.print(" | Sats: "); Serial.println(current_data.GPS_SATS);
+        Serial.print("Altitudine: ");
+        Serial.print(current_data.ALTITUDE);
+        Serial.print(" m | Temp: ");
+        Serial.print(current_data.TEMPERATURE);
+        Serial.println(" *C");
+        Serial.print("TILT_X: ");
+        Serial.print(current_data.TILT_X);
+        Serial.print("  TILT_Y: ");
+        Serial.print(current_data.TILT_Y);
+        Serial.print("  TILT_Z: ");
+        Serial.println(current_data.TILT_Z);
+    #else
+        // Telemetria CSV Compatta per la Ground Station (XBee)
+        // Formato: TEAM_ID, MISSION_TIME, STATE, ALTITUDE, TEMP, ... %%%%%%%%DA RIVEDERE%%%%%%%%%%%
+        Serial.print(current_data.TEAM_ID); Serial.print(",");
+        Serial.print(current_data.MISSION_TIME); Serial.print(",");
+        Serial.print(current_data.STATE); Serial.print(",");
+        Serial.print(current_data.ALTITUDE); Serial.print(",");
+        Serial.print(current_data.TEMPERATURE);Serial.print(",");
+        Serial.print(","); Serial.print(current_data.GPS_LATITUDE, 6);
+        Serial.print(","); Serial.print(current_data.GPS_LONGITUDE, 6);
+        Serial.print(","); Serial.println(current_data.GPS_SATS);
+    #endif
+    }
+
+
 }
-
