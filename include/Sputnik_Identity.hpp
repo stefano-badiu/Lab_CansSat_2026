@@ -16,6 +16,7 @@ struct Telemetry{
     unsigned long MISSION_TIME; // ho usato unsigned long perché mi serve un numero intero grande solo positivo, necessario per contenere i millisecondi di volo senza errori (fino a 50 giorni).
     FSM STATE; //Stato attuale della missione
     float ALTITUDE; //ovviamente servono i decimali per dati così, perciò userò float
+    float PRESSURE; //invio i dati grezzi di pressione così da poterli elaborare meglio a terra
     float TEMPERATURE; // come prima
     double GPS_LATITUDE; // double è per aggiungere accuratezza ad un numero float
     double GPS_LONGITUDE; // come prima
@@ -23,5 +24,5 @@ struct Telemetry{
     double TILT_X;
     double TILT_Y;
     double TILT_Z;
-    //potremmo voler includere altri dati, ne discuteremmo
+    //potremmo voler includere altri dati, ne discuteremo
 };
