@@ -1,8 +1,5 @@
 #pragma once
-
 #include "Sputnik_Identity.hpp"
-#include <SoftwareSerial.h>
-
 extern Telemetry current_data;
 
 bool init_MPU6050();

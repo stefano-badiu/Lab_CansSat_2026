@@ -1,7 +1,8 @@
-#include "MPU6050.hpp"
-#include <Arduino.h>
+#include <Arduino.h>   // Rende disponibili Serial, tipi Arduino e macro utili
 #include <Wire.h>      // Libreria per la comunicazione I2C con il sensore
-#include <math.h>  
+#include <math.h>      // Serve per funzioni matematiche come sqrtf() e acosf()
+#include "MPU6050.hpp" // Header del modulo MPU6050
+
 
 
 static constexpr uint8_t kMpuAddress = 0x68;     // Indirizzo I2C standard del MPU6050
@@ -61,6 +62,9 @@ void read_MPU6050() {                        // Funzione che legge i dati del se
     current_data.TILT_X = acosf(clampUnit(ax / magnitude)) * kRadToDeg; // Calcola l'angolo rispetto all'asse X e lo converte in gradi
     current_data.TILT_Y = acosf(clampUnit(ay / magnitude)) * kRadToDeg; // Calcola l'angolo rispetto all'asse Y e lo converte in gradi
     current_data.TILT_Z = acosf(clampUnit(az / magnitude)) * kRadToDeg; // Calcola l'angolo rispetto all'asse Z e lo converte in gradi
+    current_data.ACC_X = ax; // Aggiorna la telemetria con l'accelerazione grezza sull'asse X
+    current_data.ACC_Y = ay; // Aggiorna la telemetria con l'accelerazione grezza sull'asse Y
+    current_data.ACC_Z = az; // Aggiorna la telemetria con l'accelerazione grezza sull'asse Z
 }
 
 bool is_MPU6050_ready() {                    // Funzione che permette al resto del programma di sapere se il sensore è attivo
