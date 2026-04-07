@@ -10,3 +10,4 @@ const char* fsmToString(FSM state) { //per convertire lo stato della FSM in una 
         default: return "UNKNOWN";
     }
 }
+
