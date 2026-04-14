@@ -1,5 +1,9 @@
 #include "MissionControl.hpp"
 #include <Arduino.h>
+
+unsigned long photoInterval = 0;
+
+
 //void init_mission_control() {} //ci lavorerò quando penserò alla lettura su SD card
 
 void change_state(FSM state){
@@ -7,6 +11,13 @@ void change_state(FSM state){
         //&&&&&&&&&&&&&&&&&stampa seriale per test&&&&&&&&&&&&&&&&&&&
         Serial.print("MISSION UPDATE: Passaggio allo stato ");
         Serial.println(state); 
+    switch(state) {
+        case STATE_IDLE:          photoInterval = 0;     break; // Ferma
+        case STATE_ASCENT:        photoInterval = 10000; break; // 10 sec
+        case STATE_DESCENT_FAST:  photoInterval = 2000;  break; // 2 sec
+        case STATE_DESCENT_SLOW:  photoInterval = 1000;  break; // 1 sec
+        case STATE_LANDED:        photoInterval = 0;     break; // Ferma
+    }    
 
 
 }

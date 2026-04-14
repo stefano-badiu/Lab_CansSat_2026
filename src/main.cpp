@@ -7,13 +7,13 @@
 #include "GPS_PA6H.hpp"
 #include "Xbee_S2C.hpp"
 #include "MicroSD.hpp"
-
+#include "MissionControl.hpp"
 // --- INTERRUTTORE DI MISSIONE ---
-#define MODO_TEST // %%%%%%%%%%%%Commenta questa riga per il lancio reale%%%%%%%%%%%%%
+#define MOD_TEST // %%%%%%%%%%%%Commenta questa riga per il lancio reale%%%%%%%%%%%%%
 
 Telemetry current_data;
 FSM currentState = STATE_IDLE; 
-
+SoftwareSerial SerialCamera(5, 6);
 void setup() {
  // inizializzazione Hardware Universale
 Wire.begin(); 
@@ -33,7 +33,7 @@ current_data.ACC_X = 0;
 current_data.ACC_Y = 0;
 current_data.ACC_Z = 0;
 
-    #ifdef MODO_TEST
+    #ifdef MOD_TEST
         // Logica specifica per il TEST (PC)
         while (!Serial); // Aspetta che si accenda il monitor seriale
         Serial.println(F("--- SPUTNIK-33cl: SYSTEM CHECK (TEST) ---"));
@@ -81,21 +81,29 @@ current_data.ACC_Z = 0;
 }
 
 unsigned long lastTelemetryTime = 0;
-
+unsigned long lastPhotoTime = 0;
 void loop() {
     update_GPS_data();
     // Lettura dati (Sempre attiva)
     read_BMP280();//&&&&&&&&&&&&&
     read_MPU6050();
     // Qui aggiungeremo il resto dei sensori
-
+    // SCATTO FOTO CON TEMPO IBRIDO (CONTROLLARE IL MISSIONCONTROL)
+    if (photoInterval > 0 && (millis() - lastPhotoTime >= photoInterval)) {
+        lastPhotoTime = millis(); // Resetta il timer della fotocamera
+        
+        // Creiamo e inviamo il pacchetto
+        String pacchetto_cam = String(current_data.MISSION_TIME) + ";" + 
+                               String(current_data.ALTITUDE) + ";" + 
+                               String(current_data.STATE);
+        SerialCamera.println(pacchetto_cam);
+    }
     // 2. INVIO DATI OGNI SECONDO (1000ms)
     if (millis() - lastTelemetryTime >= 1000) {
         lastTelemetryTime = millis(); // Resetta il timer
         current_data.MISSION_TIME = millis(); // Aggiorna il tempo di missione
        // current_data.STATE = currentState; // Aggiorna lo stato attuale (da implementare la logica di transizione)
-
-    #ifdef MODO_TEST
+    #ifdef MOD_TEST
         // Telemetria Dettagliata per il TEST (PC)
         Serial.print(F(" | Lon: ")); Serial.print(current_data.GPS_LONGITUDE, 6);
         Serial.print(F(" | Lat: ")); Serial.print(current_data.GPS_LATITUDE, 6);
