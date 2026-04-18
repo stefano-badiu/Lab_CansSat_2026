@@ -5,7 +5,6 @@
 #define MOD_TEST // %%%%%%%%%%%%Commenta questa riga per il lancio reale%%%%%%%%%%%%%
 
 void setup() {
-   
     Serial.begin(9600); 
 
     #ifdef MOD_TEST
@@ -14,20 +13,25 @@ void setup() {
         
         if (init_camera_hardware()) {
             Serial.println("Hardware (Camera + SD): OK.");
-            Serial.println("In attesa di ordini di scatto...");
+            
+            // ---> ATTIVAZIONE TEST VIDEO <---
+            Serial.println("Avvio Test di Streaming per messa a fuoco...");
+            setup_wifi_stream();
+            // --------------------------------
+            
+            Serial.println("In attesa di ordini di scatto..."); // <- La tua riga originale
         } else {
             Serial.println("ERRORE CRITICO: Inizializzazione Hardware fallita.");
-            Serial.println("Controllare la MicroSD e il montaggio della lente.");
+            Serial.println("Controllare la MicroSD e il montaggio della lente."); // <- La tua riga originale
         }
     #else
-        // 2. Logica di avvio per il LANCIO
+        // 2. Logica di avvio per il LANCIO (Modalità Silenziosa)
         delay(2000); // Pausa di sicurezza per far stabilizzare le tensioni della batteria
         init_camera_hardware(); 
     #endif
 }
 
 void loop() {
-   
     // Se c'è corrente sul cavo RX, il Nano sta mandando un pacchetto
     if (Serial.available() > 0) {
         
@@ -43,7 +47,7 @@ void loop() {
         Serial.println("-> Foto catturata, SD aggiornata, Memoria RAM liberata.");
         Serial.println("---------------------------------------------------");
     #else
-        // In Volo: .
+        // In Volo: 
         // Prende la stringa, scatta e si rimette in attesa.
         parse_incoming_data(messaggio_in_arrivo); 
     #endif

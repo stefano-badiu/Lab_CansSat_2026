@@ -65,8 +65,10 @@ void read_MPU6050() {                        // Funzione che legge i dati del se
     current_data.ACC_X = ax; // Aggiorna la telemetria con l'accelerazione grezza sull'asse X
     current_data.ACC_Y = ay; // Aggiorna la telemetria con l'accelerazione grezza sull'asse Y
     current_data.ACC_Z = az; // Aggiorna la telemetria con l'accelerazione grezza sull'asse Z
+
 }
 
 bool is_MPU6050_ready() {                    // Funzione che permette al resto del programma di sapere se il sensore è attivo
     return mpuReady;                         // Restituisce true se il sensore è inizializzato, false altrimenti
 }
+
