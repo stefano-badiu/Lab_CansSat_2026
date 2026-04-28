@@ -47,6 +47,7 @@ current_data.TILT_Z = 0;
 current_data.ACC_X = 0;
 current_data.ACC_Y = 0;
 current_data.ACC_Z = 0;
+current_data.PARACHUTE_OPEN = false;
 current_data.BATTERY_VOLTAGE_V = 0;
 current_data.BATTERY_CURRENT_mA = 0;
 current_data.BATTERY_POWER_mW = 0;
@@ -115,18 +116,26 @@ current_data.BATTERY_REMAINING_PCT = 0;
 unsigned long lastTelemetryTime = 0;
 unsigned long lastPhotoTime = 0;
 void loop() {
+    static unsigned long lastBMPTime = 0;
+    const unsigned long intervallo_BMP = 50; // 50ms = 20 letture al secondo
     unsigned long inizio_ciclo = millis();
 
     check_radio_commands();
     accumulate_MPU6050_data(); // raccoglie l'accelerazione a raffica
-    read_BMP280();
-    update_mission_state(); // Controlla l'altitudine per il paracadute
+    // 3. Il barometro e la FSM vengono aggiornati solo ogni 50ms
+    if (millis() - lastBMPTime >= intervallo_BMP) {
+        lastBMPTime = millis();
+        
+        read_BMP280(); // Ora il calcolo pesante pow() viene eseguito "solo" 20 volte/s
+        update_mission_state(); // La FSM valuta la nuova altitudine calcolata
+    }
 
     // Qui aggiungeremo il resto dei sensori
     if (photoInterval > 0 && (millis() - lastPhotoTime >= photoInterval)) {
         lastPhotoTime = millis(); // Resetta il timer della fotocamera
         // Invio diretto senza classe String (Zero frammentazione RAM!)
         // Usiamo la macro F() per salvare anche i punti e virgola nella memoria Flash
+        SerialCamera.print(F("P;"));
         SerialCamera.print(current_data.MISSION_TIME);
         SerialCamera.print(F(";"));
         SerialCamera.print(current_data.ALTITUDE);
@@ -149,6 +158,33 @@ void loop() {
         current_data.BATTERY_POWER_mW = batterySample.power_mW;
         current_data.BATTERY_CONSUMED_mWH = batterySample.energy_mWh;
         current_data.BATTERY_REMAINING_PCT = batterySample.remaining_pct;
+
+    SerialCamera.print(F("<"));
+    SerialCamera.print(current_data.TEAM_ID);              SerialCamera.print(F(","));
+    SerialCamera.print(current_data.MISSION_TIME);         SerialCamera.print(F(","));
+    SerialCamera.print(current_data.STATE);                SerialCamera.print(F(","));
+    SerialCamera.print(current_data.ALTITUDE);             SerialCamera.print(F(","));
+    SerialCamera.print(current_data.PRESSURE);             SerialCamera.print(F(",")); 
+    SerialCamera.print(current_data.TEMPERATURE);          SerialCamera.print(F(","));
+    SerialCamera.print(current_data.GPS_LATITUDE, 6);      SerialCamera.print(F(","));
+    SerialCamera.print(current_data.GPS_LONGITUDE, 6);     SerialCamera.print(F(","));
+    SerialCamera.print(current_data.GPS_SATS);             SerialCamera.print(F(","));
+    SerialCamera.print(current_data.TILT_X);               SerialCamera.print(F(","));
+    SerialCamera.print(current_data.TILT_Y);               SerialCamera.print(F(","));
+    SerialCamera.print(current_data.TILT_Z);               SerialCamera.print(F(","));
+    SerialCamera.print(current_data.ACC_X);                SerialCamera.print(F(","));
+    SerialCamera.print(current_data.ACC_Y);                SerialCamera.print(F(","));
+    SerialCamera.print(current_data.ACC_Z);                SerialCamera.print(F(","));
+    SerialCamera.print(current_data.PARACHUTE_OPEN);       SerialCamera.print(F(","));
+    SerialCamera.print(current_data.BATTERY_VOLTAGE_V);    SerialCamera.print(F(","));
+    SerialCamera.print(current_data.BATTERY_CURRENT_mA);   SerialCamera.print(F(","));
+    SerialCamera.print(current_data.BATTERY_POWER_mW);     SerialCamera.print(F(","));
+    SerialCamera.print(current_data.BATTERY_CONSUMED_mWH); SerialCamera.print(F(","));
+    SerialCamera.print(current_data.BATTERY_REMAINING_PCT);
+    
+    // Il println finale invia il carattere di a capo ('\n'). 
+    // Fondamentale perché segnala all'ESP32 che il pacchetto è finito e può salvarlo.
+    SerialCamera.println(>);
    
     #ifdef MOD_TEST
         // Telemetria Dettagliata per il TEST (PC)

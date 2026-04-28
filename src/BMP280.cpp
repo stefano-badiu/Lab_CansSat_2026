@@ -45,7 +45,8 @@ bool calibration_BMP280(){
 void read_BMP280(){
     float current_pressure = bmp.readPressure()/100.0F; // nella formula mi serve la Pressione trovata dal sensore, essa viene misurata in Pa, a me serve in hPa, perciò /100
     float base = current_pressure/P_0; //calcoliamo il rapporto rispetto alla pressione di terra (P/P0)
-    float altitude = 44330.0*(1.0- pow(base,(1.0/5.255)));
+    float delta = 1.0F - base;   // Sostituiamo pow() con un'approssimazione polinomiale quadratica, messun logaritmo, calcolo istantaneo per la CPU a 8-bit
+    float altitude = (8435.8F * delta) + (3415.3F * delta * delta);
  
     // aggiornamento della telemetria globale
     current_data.TEMPERATURE = bmp.readTemperature();

@@ -53,3 +53,4 @@ void setup_wifi_stream();
    2. Il 'const' (Costante): garantisce che la funzione legga solo i dati senza poterli modificare per errore.
 */
 void capture_and_save(const Photo_Data &data);
+void save_full_telemetry(const char* csv_string);

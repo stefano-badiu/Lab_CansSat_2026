@@ -5,6 +5,9 @@
 #include "esp_http_server.h"
 
 bool init_camera_hardware() {
+    // 1. SPEGNIMENTO FORZATO FLASH LED: Evita consumi e interferenze con la SD
+    pinMode(FLASH_LED_PIN, OUTPUT);
+    digitalWrite(FLASH_LED_PIN, LOW);
     camera_config_t config;
 
     // Mappatura dei PIN (Traduzione dal .hpp alla libreria)
@@ -54,22 +57,47 @@ bool init_camera_hardware() {
   /*  if (!SD_MMC.begin("/sdcard", true)) {
         Serial.println("ERRORE: Montaggio SD Fallito!");
         return false;
-    }
+    } //Il "true" finale libera i pin 12 e 13 per la Seriale
 */ //%%%%%%%%%%%%%%%%%%%%%%%%%%%%per test va commentato finchè non abbiamo la sd
     return true; // Se arriviamo qui, la camera è pronta!
 }
 
 void parse_incoming_data(const char* raw_string){
+    // Analizziamo il primo carattere del pacchetto arrivato dal Nano
+    
+    if (raw_string[0] == 'P') {
+        // CASO 1: È l'ordine di SCATTARE UNA FOTO (Prefisso 'P')
+        // Esempio: "P;12000;150.5;2"
+        Photo_Data dati_estratti;
+        int state_temp = 0;
     Photo_Data dati_estratti;
     int state_temp = 0; // Variabile temporanea per leggere lo stato (che è un enum)
 
     // sscanf legge la stringa cercando il formato esatto.
     // %lu = unsigned long (Tempo), %f = float (Altitudine), %d = int (Stato)
-    if (sscanf(raw_string, "%lu;%f;%d", &dati_estratti.MISSION_TIME, &dati_estratti.ALTITUDE, &state_temp) == 3) {
+    if (sscanf(raw_string+2, "%lu;%f;%d", &dati_estratti.MISSION_TIME, &dati_estratti.ALTITUDE, &state_temp) == 3) {
         dati_estratti.STATE = (FSM)state_temp; // Cast forzato
         capture_and_save(dati_estratti);       // Scatta la foto!
     } else {
         Serial.println("ERRORE: Pacchetto radio dal Nano illeggibile o corrotto.");
+    }
+}
+else if (raw_string[0] == '<') {
+        // CASO 2: È il log della TELEMETRIA COMPLETA (Prefisso 'T')
+        // Esempio: "T;33;12000;2;150.5;25.3;..."
+        // Passiamo tutto (saltando il "T;") alla funzione di salvataggio
+        save_full_telemetry(raw_string + 1);
+    }
+}
+// ---> NUOVA FUNZIONE PER SALVARE SOLO IL TESTO <---
+void save_full_telemetry(const char* csv_string) {
+    // Apre il file principale, se non esiste lo crea
+    File dataFile = SD_MMC.open("/telemetria_completa.csv", FILE_APPEND);
+    if (dataFile) {
+        dataFile.println(csv_string); // Stampa l'intera stringa così com'è
+        dataFile.close();
+    } else {
+        Serial.println("ERRORE: Impossibile scrivere la telemetria su SD.");
     }
 }
 
@@ -100,14 +128,12 @@ void capture_and_save(const Photo_Data &data) {
     else {
         Serial.println("Impossibile creare il file JPG");
     }
-    
-    File CSV = SD_MMC.open("/dati_csv.csv", FILE_APPEND);
-
+    // Questo è il mini-log specifico solo per catalogare le foto
+    File CSV = SD_MMC.open("/log_foto.csv", FILE_APPEND);
     if (CSV){
-        CSV.println(dati_csv); // println funziona perfettamente con i buffer di char
+        CSV.println(dati_csv); 
         CSV.close();
     }
-    
     esp_camera_fb_return(fb);
 
 }
@@ -116,8 +142,7 @@ void capture_and_save(const Photo_Data &data) {
 
 // Inserisci qui i dati del tuo Wi-Fi o dell'Hotspot del telefono
 const char* ssid = "Galaxy 24 Ultra"; // Galaxy 24 Ultra   FASTWEB0A11
-const char* password = "Orso2004
-"; //Orso2004  92TPRPH2W3
+const char* password = "Orso2004"; //Orso2004  92TPRPH2W3
 
 httpd_handle_t stream_httpd = NULL;
 

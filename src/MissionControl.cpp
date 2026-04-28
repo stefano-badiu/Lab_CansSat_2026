@@ -8,40 +8,47 @@ unsigned long photoInterval = 0;
 Servo servo_paracadute;
 
 
-int eps=1; // valore da definire ancora, bisogna analizzare i dati del mpu
-bool detect_launch(){
-    static unsigned long tempo_detect_launch = 0;
-    float rumore_q = (current_data.ACC_X * current_data.ACC_X) + (current_data.ACC_Y * current_data.ACC_Y);
-    float eps_q = eps * eps;
-    if(current_data.ALTITUDE>5 && rumore_q>eps_q) {
-        if (tempo_detect_launch ==0){
-            tempo_detect_launch=millis();
-        } else{
-            if (millis()-tempo_detect_launch>=3000){
-                return true;
-            }
+bool detect_launch() {
+    static unsigned long inizio_decollo = 0;
+    
+    // Niente accelerometri: il drone sale dolcemente.
+    // Usiamo una quota di sicurezza (es. 10 metri) per capire che il volo è iniziato.
+    if (current_data.ALTITUDE > 10.0) {
+        if (inizio_decollo == 0) {
+            inizio_decollo = millis(); // Facciamo partire il cronometro
+        } 
+        // Se rimaniamo sopra i 10 metri per 2 secondi continui, siamo sicuramente in volo
+        else if (millis() - inizio_decollo >= 2000) {
+            return true; // Passa a STATE_ASCENT
         }
     } else {
-        tempo_detect_launch=0; //non era davvero partito, ricominciamo a contare da capo
+        // Se era solo un falso allarme o il drone è riatterrato subito, azzera tutto
+        inizio_decollo = 0;
     }
+    
     return false;
 }
 
 int eps_a=2;
-const int n_conferme = 3;
+const unsigned long t_conferma_apogeo = 1000; // 1 secondo continuo di caduta
+
 bool detect_apogee() {
     static float m = 0.0;
-    static int contatore_caduta = 0;
+    static unsigned long inizio_caduta = 0;
     float new_altitude = current_data.ALTITUDE;
     
     if (new_altitude > m) { m = new_altitude; }
     
     if (m > (new_altitude + eps_a)) {
-        contatore_caduta++; 
-        if (contatore_caduta >= n_conferme) { return true; }
+        if (inizio_caduta == 0) { 
+            inizio_caduta = millis(); 
+        }
+        else if (millis() - inizio_caduta >= t_conferma_apogeo) { 
+            return true; // APOGEO CONFERMATO
     } else {
-        contatore_caduta = 0; 
+        inizio_caduta = 0; 
     }
+}
     
     return false; 
 }
@@ -49,17 +56,24 @@ bool detect_apogee() {
 const float quota_target = 100.0;
 const float compensazione_caduta = 10.0; 
 const float soglia_sgancio = quota_target + compensazione_caduta; // 110 metri
-
-const int n_conferme_sgancio = 5;
+// Aspettiamo 300ms. A 30 m/s, il CanSat perderà circa 9 metri prima dell'apertura.
+// Aprirà quindi intorno ai 100 metri 
+const unsigned long t_conferma_sgancio = 300;
 bool detect_altitude() {
-    static int contatore_sotto_quota = 0; 
+    static unsigned long inizio_sotto_quota = 0; 
 
     if (current_data.ALTITUDE <= soglia_sgancio) {
-        contatore_sotto_quota++; 
-        
-        if (contatore_sotto_quota >= n_conferme_sgancio) {return true;}
-    }else{contatore_sotto_quota = 0;}
+        if (inizio_sotto_quota == 0) {
+            inizio_sotto_quota = millis();
+        }
+        else if (millis() - inizio_sotto_quota >= t_conferma_sgancio) {
+            return true; 
+       } else {
+        // Se la quota torna sopra i 110m (era solo rumore del sensore), resetta
+        inizio_sotto_quota = 0;
+    }
     return false;   
+}
 }
 
 
@@ -149,7 +163,7 @@ void update_mission_state(){
 
         case STATE_DESCENT_SLOW:
         servo_paracadute.write(90);
-
+        current_data.PARACHUTE_OPEN = true;
             if(detect_landing()){
                 change_state(STATE_LANDED);
             }
