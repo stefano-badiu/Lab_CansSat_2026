@@ -27,7 +27,12 @@ struct Telemetry{
     float ACC_Y;
     float ACC_Z;
     bool PARACHUTE_OPEN;   // 0 = Chiuso, 1 = Aperto
-    float BATTERY_VOLTAGE;
     //potremmo voler includere altri dati, ne discuteremo
+    float BATTERY_VOLTAGE_V; 
+    float BATTERY_CURRENT_mA; 
+    float BATTERY_POWER_mW; 
+    float BATTERY_CONSUMED_mWH; 
+    float BATTERY_REMAINING_PCT; 
+    //potremmo voler includere altri dati, ne discuteremmo
 };
 const char* fsmToString(FSM state); // Converte uno stato della FSM in una stringa leggibile

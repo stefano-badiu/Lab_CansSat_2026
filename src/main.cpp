@@ -9,10 +9,11 @@
 //#include "MicroSD.hpp"
 #include "MissionControl.hpp"
 #include <EEPROM.h>
-
+#include "INA219.hpp"
 // --- INTERRUTTORE DI MISSIONE ---
 #define MOD_TEST // %%%%%%%%%%%%Commenta questa riga per il lancio reale%%%%%%%%%%%%%
 
+INA219BatteryMonitor batteryMonitor;
 Telemetry current_data;
 FSM currentState = STATE_IDLE;
 //SERIALI VIRTUALI
@@ -46,6 +47,11 @@ current_data.TILT_Z = 0;
 current_data.ACC_X = 0;
 current_data.ACC_Y = 0;
 current_data.ACC_Z = 0;
+current_data.BATTERY_VOLTAGE_V = 0;
+current_data.BATTERY_CURRENT_mA = 0;
+current_data.BATTERY_POWER_mW = 0;
+current_data.BATTERY_CONSUMED_mWH = 0;
+current_data.BATTERY_REMAINING_PCT = 0;
 
     #ifdef MOD_TEST
         // Logica specifica per il TEST (PC)
@@ -75,6 +81,13 @@ current_data.ACC_Z = 0;
             }
         }*/
     
+        if (!batteryMonitor.init_INA219()) {
+            Serial.println(F("ERRORE: Impossibile inizializzare il monitor batteria INA219."));
+        } else {
+            Serial.println(F("Monitor batteria INA219: OK"));
+            batteryMonitor.setBatteryCapacity(1000.0f); // Imposta la capacità della batteria a 1000 mWh per i test
+            batteryMonitor.setInitialSocPercent(100.0f); // Assume che la batteria sia completamente carica all'inizio
+        }
     
         #else
         delay(2000); // Pausa di sicurezza per stabilizzare l'elettronica
@@ -103,14 +116,15 @@ unsigned long lastTelemetryTime = 0;
 unsigned long lastPhotoTime = 0;
 void loop() {
     unsigned long inizio_ciclo = millis();
+
     check_radio_commands();
     accumulate_MPU6050_data(); // raccoglie l'accelerazione a raffica
     read_BMP280();
     update_mission_state(); // Controlla l'altitudine per il paracadute
+
     // Qui aggiungeremo il resto dei sensori
     if (photoInterval > 0 && (millis() - lastPhotoTime >= photoInterval)) {
         lastPhotoTime = millis(); // Resetta il timer della fotocamera
-        
         // Invio diretto senza classe String (Zero frammentazione RAM!)
         // Usiamo la macro F() per salvare anche i punti e virgola nella memoria Flash
         SerialCamera.print(current_data.MISSION_TIME);
@@ -118,8 +132,8 @@ void loop() {
         SerialCamera.print(current_data.ALTITUDE);
         SerialCamera.print(F(";"));
         SerialCamera.println(current_data.STATE); // println chiude il pacchetto con \n
-
     }
+   
     // CICLO DI INVIO DATI OGNI SECONDO (1000ms)
     if (millis() - lastTelemetryTime >= 1000) {
         lastTelemetryTime = millis(); // Resetta il timer
@@ -127,21 +141,42 @@ void loop() {
         current_data.STATE = currentState; // Aggiorna lo stato attuale (da implementare la logica di transizione)
         compute_and_save_MPU6050();
         update_GPS_data(); //sono lenti, li aggiorno solo 1 volta al secondo
+        
+        batteryMonitor.read_INA219();
+        InaSample batterySample = batteryMonitor.getLastSample();
+        current_data.BATTERY_VOLTAGE_V = batterySample.voltage_V;
+        current_data.BATTERY_CURRENT_mA = batterySample.current_mA;
+        current_data.BATTERY_POWER_mW = batterySample.power_mW;
+        current_data.BATTERY_CONSUMED_mWH = batterySample.energy_mWh;
+        current_data.BATTERY_REMAINING_PCT = batterySample.remaining_pct;
+   
     #ifdef MOD_TEST
         // Telemetria Dettagliata per il TEST (PC)
         Serial.print(F("Time: ")); Serial.print(current_data.MISSION_TIME);
-        Serial.print(F(" | Alt: ")); Serial.print(current_data.ALTITUDE); Serial.print(F("m"));
-        Serial.print(F(" | Lon: ")); Serial.print(current_data.GPS_LONGITUDE, 6);
-        Serial.print(F(" | Lat: ")); Serial.print(current_data.GPS_LATITUDE, 6);
-        Serial.print(F(" | Sats: ")); Serial.println(current_data.GPS_SATS);
-        Serial.print(F(" m | Temp: "));Serial.print(current_data.TEMPERATURE);Serial.println(F(" *C"));
-        Serial.print(F("TILT_X: "));Serial.print(current_data.TILT_X);
-        Serial.print(F("  TILT_Y: "));Serial.print(current_data.TILT_Y);
-        Serial.print(F("  TILT_Z: "));Serial.println(current_data.TILT_Z);
-        Serial.print(F("ACC_X: "));Serial.print(current_data.ACC_X);
-        Serial.print(F("  ACC_Y: "));Serial.print(current_data.ACC_Y);
-        Serial.print(F("  ACC_Z: "));Serial.println(current_data.ACC_Z);
+            Serial.print(F(" | Alt: ")); Serial.print(current_data.ALTITUDE); Serial.print(F("m"));
+            Serial.print(F(" | Lon: ")); Serial.print(current_data.GPS_LONGITUDE, 6);
+            Serial.print(F(" | Lat: ")); Serial.print(current_data.GPS_LATITUDE, 6);
+            Serial.print(F(" | Sats: ")); Serial.println(current_data.GPS_SATS);
+            
+            Serial.print(F("Temp: ")); Serial.print(current_data.TEMPERATURE); Serial.println(F(" *C"));
+            
+            Serial.print(F("TILT_X: ")); Serial.print(current_data.TILT_X);
+            Serial.print(F("  TILT_Y: ")); Serial.print(current_data.TILT_Y);
+            Serial.print(F("  TILT_Z: ")); Serial.println(current_data.TILT_Z);
+            
+            Serial.print(F("ACC_X: ")); Serial.print(current_data.ACC_X);
+            Serial.print(F("  ACC_Y: ")); Serial.print(current_data.ACC_Y);
+            Serial.print(F("  ACC_Z: ")); Serial.println(current_data.ACC_Z);
+            
+            Serial.print(F("Bat Volt: ")); Serial.print(current_data.BATTERY_VOLTAGE_V);
+            Serial.print(F(" V | Cur: ")); Serial.print(current_data.BATTERY_CURRENT_mA);
+            Serial.print(F(" mA | Pwr: ")); Serial.print(current_data.BATTERY_POWER_mW);
+            Serial.print(F(" mW | Rem: ")); Serial.print(current_data.BATTERY_REMAINING_PCT);
+            Serial.println(F(" %"));
         transmit_telemetry();
+        
+        
+        
     #else
         // Telemetria CSV Compatta per la Ground Station (XBee)
         // Formato: TEAM_ID, MISSION_TIME, STATE, ALTITUDE, TEMP, ... %%%%%%%%DA RIVEDERE%%%%%%%%%%%
@@ -165,5 +200,5 @@ void loop() {
              Serial.println(F("-----------------------------------"));
          #endif
     }
-    
+        
 }

@@ -32,7 +32,7 @@ void transmit_telemetry() {
     Serial.print(current_data.ACC_Y);            Serial.print(F(","));
     Serial.print(current_data.ACC_Z);            Serial.print(F(","));
     Serial.print(current_data.PARACHUTE_OPEN);   Serial.print(F(","));
-    Serial.print(current_data.BATTERY_VOLTAGE);
+    //migliorare questa parte  Serial.print(current_data.BATTERY_VOLTAGE);
     Serial.println(F(">"));
     
 
