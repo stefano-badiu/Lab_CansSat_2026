@@ -1,4 +1,4 @@
-#include "MicroSD.hpp"
+/*#include "MicroSD.hpp"
 #include <Arduino.h>
 #include <SD.h>  // Libreria per la gestione della scheda SD, che permette di leggere e scrivere file su di essa
 #include <SPI.h> // Libreria per la comunicazione SPI, necessaria per interfacciarsi con la scheda SD
@@ -129,4 +129,4 @@ void closeLogFile() {
 }
 bool is_MicroSD_ready() {
     return sdReady; // Ritorna true se la SD è pronta da usare, false altrimenti
-}
+}*/

@@ -5,6 +5,10 @@
 SoftwareSerial gpsSerial(GPS_RX_PIN, GPS_TX_PIN);
 TinyGPSPlus GPS;
 
+void focus_GPS() {
+    gpsSerial.listen();
+}
+
 bool init_GPS(){
     gpsSerial.begin(9600);
     gpsSerial.println("$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*28");
@@ -27,3 +31,4 @@ void update_GPS_data(){
     }
  }
 }
+

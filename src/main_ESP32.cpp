@@ -3,10 +3,17 @@
 
 // --- INTERRUTTORE DI MISSIONE ---
 #define MOD_TEST // %%%%%%%%%%%%Commenta questa riga per il lancio reale%%%%%%%%%%%%%
+// 1. Definiamo la nuova seriale hardware
+// UART1 dell'ESP32: RX su pin 13, TX su pin 12 (opzionale)
+HardwareSerial SerialNano(1); 
+#define RX_NANO 13
+#define TX_NANO 12
 
 void setup() {
-    Serial.begin(9600); 
-
+   // Porta di DEBUG (USB) - Alziamo la velocità per i log pesanti
+    Serial.begin(115200);
+    SerialNano.begin(9600, SERIAL_8N1, RX_NANO, TX_NANO);
+    
     #ifdef MOD_TEST
         delay(1000); // Pausa per far stabilizzare il monitor seriale
         Serial.println("\n--- SPUTNIK-33cl: CAMERA SYSTEM CHECK (TEST) ---");
@@ -32,25 +39,29 @@ void setup() {
 }
 
 void loop() {
-    // Se c'è corrente sul cavo RX, il Nano sta mandando un pacchetto
-    if (Serial.available() > 0) {
-        
-        // Leggiamo tutto il pacchetto finché non troviamo (\n)
-        String messaggio_in_arrivo = Serial.readStringUntil('\n');
-
-    #ifdef MOD_TEST
-        Serial.print("Ordine ricevuto dal Nano: ");
-        Serial.println(messaggio_in_arrivo);
+    // Buffer statico per la ricezione (addio classe String!)
+    static char buffer[128];
+    static int index = 0;
     
-        parse_incoming_data(messaggio_in_arrivo); 
-        
-        Serial.println("-> Foto catturata, SD aggiornata, Memoria RAM liberata.");
-        Serial.println("---------------------------------------------------");
-    #else
-        // In Volo: 
-        // Prende la stringa, scatta e si rimette in attesa.
-        parse_incoming_data(messaggio_in_arrivo); 
-    #endif
+    while (SerialNano.available() > 0) {
+        char c = SerialNano.read();
 
+        // Se troviamo il carattere di fine riga (\n) o il buffer è pieno
+        if (c == '\n' || index >= 127) {
+            buffer[index] = '\0'; // Chiudiamo la stringa
+            
+            #ifdef MOD_TEST
+                Serial.print("Dato ricevuto dal Nano: ");
+                Serial.println(buffer);
+            #endif
+            
+            // In volo o in test, il parser viene chiamato SEMPRE e solo UNA volta
+            parse_incoming_data(buffer); 
+            
+            index = 0; // Resettiamo il buffer per il prossimo pacchetto
+        } 
+        else if (c != '\r') { // Ignoriamo il ritorno a capo di Windows
+            buffer[index++] = c;
+        }
     }
 }

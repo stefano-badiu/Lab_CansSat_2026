@@ -1,4 +1,4 @@
-#pragma once
+/*#pragma once
 #include "Sputnik_Identity.hpp"
 
 bool init_MicroSD();  //Serve a inizializzare la scheda. Ritorno: true se la SD risponde, false se fallisce.
@@ -14,3 +14,4 @@ void flushLogFile();  //Serve a forzare il salvataggio sulla SD ogni tanto.
 void closeLogFile();  //Serve a chiudere bene il file a fine missione.
 
 bool is_MicroSD_ready();  //Serve al main per sapere se la SD è disponibile.
+*/

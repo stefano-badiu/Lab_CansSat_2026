@@ -42,7 +42,7 @@ struct Photo_Data {
     float ALTITUDE; // Altitudine al momento dello scatto
     FSM STATE; // Stato della FSM al momento dello scatto    
 };
-void parse_incoming_data(String raw_string); // Funzione per il parsing dei dati in arrivo, che poi verranno salvati nella telemetria e usati per la funzione capture_and_save
+void parse_incoming_data(const char* raw_string); // Funzione per il parsing dei dati in arrivo, che poi verranno salvati nella telemetria e usati per la funzione capture_and_save
  
 bool init_camera_hardware();
 void setup_wifi_stream();

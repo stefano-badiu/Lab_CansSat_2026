@@ -1,35 +1,69 @@
 #include "Xbee_S2C.hpp"
 #include <Arduino.h>     // Serial, millis
+#include "BMP280.hpp"
+#include "MissionControl.hpp"
 
-Xbee_S2C::Xbee_S2C(Stream& serialPort) : serial(serialPort) {}
 
-void Xbee_S2C::sendTelemetry(const Telemetry& data) {
-    serial.print("$"); // Start marker: utile per la Ground Station
-    serial.print(",");
-    serial.print(data.TEAM_ID); serial.print(",");
-    serial.print(data.MISSION_TIME); serial.print(",");
-    serial.print(data.STATE); serial.print(",");
-    serial.print(data.ALTITUDE); serial.print(",");
-    serial.print(data.PRESSURE); serial.print(","); 
-    serial.print(data.TEMPERATURE); serial.print(",");
-    serial.print(data.GPS_LATITUDE, 6); serial.print(",");
-    serial.print(data.GPS_LONGITUDE, 6); serial.print(",");
-    serial.print(data.GPS_SATS); serial.print(",");
-    serial.print(data.TILT_X); serial.print(",");
-    serial.print(data.TILT_Y); serial.print(",");
-    serial.print(data.TILT_Z); serial.print(",");
-    serial.print(data.ACC_X); serial.print(",");
-    serial.print(data.ACC_Y); serial.print(",");
-    serial.println(data.ACC_Z); 
+
+    extern Telemetry current_data; 
+    extern bool manual_override;
+
+void init_Xbee() {
+    // La porta Seriale (Pin 0 e 1) è già stata aperta nel setup del main a 9600 baud.
+    // Qui mandiamo solo un "ping" iniziale per far sapere a terra che la radio è viva.
+    Serial.println(F("<SPUTNIK-33cl: SISTEMA RADIO (HARDWARE) ATTIVO>"));
 }
 
-bool Xbee_S2C::available() {
-    return serial.available() > 0;
+void transmit_telemetry() {
+    // Costruiamo il pacchetto CSV compatto.
+    Serial.print(F("<"));
+    Serial.print(current_data.TEAM_ID);          Serial.print(F(","));
+    Serial.print(current_data.MISSION_TIME);     Serial.print(F(","));
+    Serial.print(current_data.STATE);            Serial.print(F(","));
+    Serial.print(current_data.ALTITUDE);         Serial.print(F(","));
+    Serial.print(current_data.TEMPERATURE);      Serial.print(F(","));
+    Serial.print(current_data.GPS_LATITUDE, 6);  Serial.print(F(","));
+    Serial.print(current_data.GPS_LONGITUDE, 6); Serial.print(F(","));
+    Serial.print(current_data.GPS_SATS);         Serial.print(F(","));
+    Serial.print(current_data.TILT_X);           Serial.print(F(","));
+    Serial.print(current_data.TILT_Y);           Serial.print(F(","));
+    Serial.print(current_data.TILT_Z);           Serial.print(F(","));
+    Serial.print(current_data.ACC_X);            Serial.print(F(","));
+    Serial.print(current_data.ACC_Y);            Serial.print(F(","));
+    Serial.print(current_data.ACC_Z);            Serial.print(F(","));
+    Serial.print(current_data.PARACHUTE_OPEN);   Serial.print(F(","));
+    Serial.print(current_data.BATTERY_VOLTAGE);
+    Serial.println(F(">"));
+    
+
 }
 
-String Xbee_S2C::readData() {
-    if (serial.available() > 0) {
-        return serial.readStringUntil('\n');
+void check_radio_commands(){
+    if (Serial.available()>0){
+        char command = Serial.read();
+    switch(command){
+        case 'O':
+        manual_override = false; break;
+        case 'I': 
+        current_data.STATE= STATE_IDLE;
+        manual_override = true; break;
+        case 'A':
+        current_data.STATE=STATE_ASCENT;
+        manual_override = true; break;
+        case 'S':
+        current_data.STATE=STATE_DESCENT_SLOW;
+        manual_override = true; break; //andrebbe forzato anche l'accensione oppure vogliamo un comando a parte?
+        case 'L':
+        current_data.STATE=STATE_LANDED;
+        manual_override = true; break;
+        case 'C':
+        calibration_BMP280(); break;
+        Serial.println(F("<ACK: CALIBRAZIONE ESEGUITA>"));
+        //case P: take_photo();  potremmo aggiungere questo comando per fare foto quando vogliamo
+        default:
+            // Ignora qualsiasi carattere che non sia O, I, A, S, L, C
+        break;
+
     }
-    return "";
+}
 }

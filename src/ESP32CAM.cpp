@@ -51,43 +51,48 @@ bool init_camera_hardware() {
         Serial.printf("ERRORE: Inizializzazione Camera Fallita! Codice: 0x%x", err);
         return false;
     }
-    if (!SD_MMC.begin()) {
+  /*  if (!SD_MMC.begin("/sdcard", true)) {
         Serial.println("ERRORE: Montaggio SD Fallito!");
         return false;
     }
-
+*/ //%%%%%%%%%%%%%%%%%%%%%%%%%%%%per test va commentato finchè non abbiamo la sd
     return true; // Se arriviamo qui, la camera è pronta!
 }
 
-void parse_incoming_data(String raw_string){
-    raw_string.trim(); // <--- Pulisce gli "a capo" invisibili prima di iniziare
+void parse_incoming_data(const char* raw_string){
     Photo_Data dati_estratti;
+    int state_temp = 0; // Variabile temporanea per leggere lo stato (che è un enum)
 
-    int separatore = raw_string.indexOf(";"); //troviamo in che posizione si trova il primo ';'
-    String tempo =raw_string.substring(0,separatore); //ritagliamo il pezzo di stringa da zero fino al separatore
-    dati_estratti.MISSION_TIME=tempo.toInt();
-    raw_string=raw_string.substring(separatore+1); //ho messo il +1 perchè sennò avrei incluso anche il ;
-    separatore=raw_string.indexOf(";");
-    String altitude=raw_string.substring(0,separatore);
-    dati_estratti.ALTITUDE=altitude.toFloat();
-    raw_string = raw_string.substring(separatore + 1);
-    dati_estratti.STATE=(FSM)raw_string.toInt(); // Cast forzato a FSM
-
-    capture_and_save(dati_estratti);  //scatta
+    // sscanf legge la stringa cercando il formato esatto.
+    // %lu = unsigned long (Tempo), %f = float (Altitudine), %d = int (Stato)
+    if (sscanf(raw_string, "%lu;%f;%d", &dati_estratti.MISSION_TIME, &dati_estratti.ALTITUDE, &state_temp) == 3) {
+        dati_estratti.STATE = (FSM)state_temp; // Cast forzato
+        capture_and_save(dati_estratti);       // Scatta la foto!
+    } else {
+        Serial.println("ERRORE: Pacchetto radio dal Nano illeggibile o corrotto.");
+    }
 }
 
 void capture_and_save(const Photo_Data &data) {
 
-    String nome_file = "/"+ String(data.MISSION_TIME)+ ".jpg"; // Nome del file basato sul tempo di missione
-    String dati_csv = nome_file + "," + String(data.MISSION_TIME) + "," + String(data.ALTITUDE) + "," + String(data.STATE);
+   // Creiamo due "recinti" di memoria sicuri (Buffer)
+    char nome_file[32]; 
+    char dati_csv[128]; 
+
+    // Formattiamo le stringhe direttamente nei buffer
+    // %lu = unsigned long, %.2f = float con 2 decimali, %d = int
+    snprintf(nome_file, sizeof(nome_file), "/%lu.jpg", data.MISSION_TIME);
+    snprintf(dati_csv, sizeof(dati_csv), "%s,%lu,%.2f,%d", nome_file, data.MISSION_TIME, data.ALTITUDE, (int)data.STATE);
+
     camera_fb_t * fb = esp_camera_fb_get(); 
 
     if (!fb) {
-    Serial.println("Errore: La fotocamera non ha consegnato la foto!");
-    return; // Interrompe la funzione se lo scatto fallisce
+        Serial.println("Errore: La fotocamera non ha consegnato la foto!");
+        return; 
     }
-    //apertura SD
-    File Pfile = SD_MMC.open(nome_file.c_str(), FILE_WRITE);
+    
+    //apertura SD (Passiamo direttamente il buffer nome_file)
+    File Pfile = SD_MMC.open(nome_file, FILE_WRITE);
     if (Pfile){
         Pfile.write(fb->buf, fb->len);
         Pfile.close();
@@ -95,12 +100,14 @@ void capture_and_save(const Photo_Data &data) {
     else {
         Serial.println("Impossibile creare il file JPG");
     }
+    
     File CSV = SD_MMC.open("/dati_csv.csv", FILE_APPEND);
 
     if (CSV){
-        CSV.println(dati_csv);
+        CSV.println(dati_csv); // println funziona perfettamente con i buffer di char
         CSV.close();
     }
+    
     esp_camera_fb_return(fb);
 
 }
@@ -108,8 +115,9 @@ void capture_and_save(const Photo_Data &data) {
 
 
 // Inserisci qui i dati del tuo Wi-Fi o dell'Hotspot del telefono
-const char* ssid = "Galaxy 24 Ultra";
-const char* password = "Orso2004";
+const char* ssid = "Galaxy 24 Ultra"; // Galaxy 24 Ultra   FASTWEB0A11
+const char* password = "Orso2004
+"; //Orso2004  92TPRPH2W3
 
 httpd_handle_t stream_httpd = NULL;
 

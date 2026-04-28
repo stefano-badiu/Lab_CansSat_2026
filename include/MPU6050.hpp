@@ -4,8 +4,9 @@
 extern Telemetry current_data;
 
 bool init_MPU6050();
-void read_MPU6050();
 bool is_MPU6050_ready();
+void accumulate_MPU6050_data();
+void compute_and_save_MPU6050();
 
 struct MPU6050CalibrationData {
     float biasX;

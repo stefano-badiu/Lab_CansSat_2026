@@ -3,7 +3,10 @@
 #include <math.h>      // Serve per funzioni matematiche come sqrtf() e acosf()
 #include "MPU6050.hpp" // Header del modulo MPU6050
 
-
+static float accumulo_ax = 0.0F;
+static float accumulo_ay = 0.0F;
+static float accumulo_az = 0.0F;
+static int contatore_letture = 0;
 
 static constexpr uint8_t kMpuAddress = 0x68;     // Indirizzo I2C standard del MPU6050
 static constexpr float kRadToDeg = 57.2957795F;  // Fattore di conversione da radianti a gradi
@@ -48,31 +51,55 @@ bool init_MPU6050() {                        // Funzione di inizializzazione del
     return true;                             // Ritorna true per indicare inizializzazione riuscita
 }
 
-void read_MPU6050() {                        // Funzione che legge i dati del sensore e aggiorna la telemetria
-    if (!mpuReady) return;                   // Se il sensore non è pronto, esce subito senza fare nulla
+void accumulate_MPU6050_data() {
+    if (!mpuReady) return;
 
-    float ax = static_cast<float>(readAxisRegister(0x3B)) / 16384.0F; // Legge accelerazione asse X e la converte in g
-    float ay = static_cast<float>(readAxisRegister(0x3D)) / 16384.0F; // Legge accelerazione asse Y e la converte in g
-    float az = static_cast<float>(readAxisRegister(0x3F)) / 16384.0F; // Legge accelerazione asse Z e la converte in g
+    float ax = static_cast<float>(readAxisRegister(0x3B)) / 16384.0F;
+    float ay = static_cast<float>(readAxisRegister(0x3D)) / 16384.0F;
+    float az = static_cast<float>(readAxisRegister(0x3F)) / 16384.0F;
 
-    if (is_MPU6050_calibrated()) {              // Se il sensore è calibrato, applica i dati di calibrazione
-        const MPU6050CalibrationData calib = get_MPU6050_calibration_data(); // Ottiene i dati di calibrazione
-        ax = (ax - calib.biasX) * calib.scaleX; // Applica bias e scale all'asse X
-        ay = (ay - calib.biasY) * calib.scaleY; // Applica bias e scale all'asse Y
-        az = (az - calib.biasZ) * calib.scaleZ; // Applica bias e scale all'asse Z
+    if (is_MPU6050_calibrated()) {
+        const MPU6050CalibrationData calib = get_MPU6050_calibration_data();
+        ax = (ax - calib.biasX) * calib.scaleX;
+        ay = (ay - calib.biasY) * calib.scaleY;
+        az = (az - calib.biasZ) * calib.scaleZ;
     }
 
-    const float magnitude = sqrtf((ax * ax) + (ay * ay) + (az * az)); // Calcola il modulo del vettore accelerazione nello spazio 3D
+    // Invece di calcolare il TILT, ci limitiamo a mettere i dati nel "secchio"
+    accumulo_ax += ax;
+    accumulo_ay += ay;
+    accumulo_az += az;
+    contatore_letture++;
+}
 
-    if (magnitude <= 0.0F) return;           // Se il modulo è nullo o non valido, evita divisioni per zero
+void compute_and_save_MPU6050() {
+    // Se non abbiamo letto nulla o il sensore è spento, esci
+    if (!mpuReady || contatore_letture == 0) return;
 
-    current_data.TILT_X = acosf(clampUnit(ax / magnitude)) * kRadToDeg; // Calcola l'angolo rispetto all'asse X e lo converte in gradi
-    current_data.TILT_Y = acosf(clampUnit(ay / magnitude)) * kRadToDeg; // Calcola l'angolo rispetto all'asse Y e lo converte in gradi
-    current_data.TILT_Z = acosf(clampUnit(az / magnitude)) * kRadToDeg; // Calcola l'angolo rispetto all'asse Z e lo converte in gradi
-    current_data.ACC_X = ax; // Aggiorna la telemetria con l'accelerazione grezza sull'asse X
-    current_data.ACC_Y = ay; // Aggiorna la telemetria con l'accelerazione grezza sull'asse Y
-    current_data.ACC_Z = az; // Aggiorna la telemetria con l'accelerazione grezza sull'asse Z
+    // 1. Calcoliamo la media esatta (Filtro Passa-Basso)
+    float media_ax = accumulo_ax / static_cast<float>(contatore_letture);
+    float media_ay = accumulo_ay / static_cast<float>(contatore_letture);
+    float media_az = accumulo_az / static_cast<float>(contatore_letture);
 
+    // 2. Salviamo le accelerazioni mediate e pulite
+    current_data.ACC_X = media_ax;
+    current_data.ACC_Y = media_ay;
+    current_data.ACC_Z = media_az;
+
+    // 3. Calcoliamo il TILT basandoci SULLE MEDIE (molto più stabile!)
+    const float magnitude = sqrtf((media_ax * media_ax) + (media_ay * media_ay) + (media_az * media_az));
+
+    if (magnitude > 0.0F) {
+        current_data.TILT_X = acosf(clampUnit(media_ax / magnitude)) * kRadToDeg;
+        current_data.TILT_Y = acosf(clampUnit(media_ay / magnitude)) * kRadToDeg;
+        current_data.TILT_Z = acosf(clampUnit(media_az / magnitude)) * kRadToDeg;
+    }
+
+    // 4. Svuotiamo i secchi per il prossimo secondo
+    accumulo_ax = 0.0F;
+    accumulo_ay = 0.0F;
+    accumulo_az = 0.0F;
+    contatore_letture = 0;
 }
 
 bool is_MPU6050_ready() {                    // Funzione che permette al resto del programma di sapere se il sensore è attivo
@@ -123,3 +150,4 @@ bool calibrate_MPU6050_accel(uint16_t sampleCount, uint16_t sampleDelayMs) { // 
     return true;                             // Restituisce true per indicare che la calibrazione è stata completata con successo
     
 }
+

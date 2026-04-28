@@ -13,3 +13,4 @@ extern TinyGPSPlus GPS;
 
 bool init_GPS();
 void update_GPS_data();
+void focus_GPS();
