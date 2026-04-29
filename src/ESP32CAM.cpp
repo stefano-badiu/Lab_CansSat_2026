@@ -54,13 +54,26 @@ bool init_camera_hardware() {
         Serial.printf("ERRORE: Inizializzazione Camera Fallita! Codice: 0x%x", err);
         return false;
     }
-  /*  if (!SD_MMC.begin("/sdcard", true)) {
+    if (!SD_MMC.begin("/sdcard", true)) {
         Serial.println("ERRORE: Montaggio SD Fallito!");
         return false;
     } //Il "true" finale libera i pin 12 e 13 per la Seriale
-*/ //%%%%%%%%%%%%%%%%%%%%%%%%%%%%per test va commentato finchè non abbiamo la sd
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%per test va commentato finchè non abbiamo la sd
+    
+
+    if (!SD_MMC.exists("/telemetria_completa.csv")) {
+        File headerFile = SD_MMC.open("/telemetria_completa.csv", FILE_WRITE);
+        if (headerFile) {
+            headerFile.println("TEAM_ID,MISSION_TIME,STATE,ALTITUDE,PRESSURE,TEMPERATURE,GPS_LAT,GPS_LON,GPS_SATS,TILT_X,TILT_Y,TILT_Z,ACC_X,ACC_Y,ACC_Z,PARACHUTE_OPEN,BAT_VOLT,BAT_mA,BAT_mW,BAT_mWh,BAT_PCT");
+            headerFile.close();
+            Serial.println("-> Nuovo file di telemetria creato con intestazione.");
+        }
+    }
     return true; // Se arriviamo qui, la camera è pronta!
+    
 }
+
+
 
 void parse_incoming_data(const char* raw_string){
     // Analizziamo il primo carattere del pacchetto arrivato dal Nano
@@ -139,8 +152,8 @@ void capture_and_save(const Photo_Data &data) {
 
 
 // Inserisci qui i dati del tuo Wi-Fi o dell'Hotspot del telefono
-const char* ssid = "Galaxy 24 Ultra"; // Galaxy 24 Ultra   FASTWEB0A11
-const char* password = "Orso2004"; //Orso2004  92TPRPH2W3
+const char* ssid = "Valerio"; // Galaxy 24 Ultra   FASTWEB0A11
+const char* password = "87654321"; //Orso2004  92TPRPH2W3
 
 httpd_handle_t stream_httpd = NULL;
 

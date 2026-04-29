@@ -12,7 +12,7 @@ HardwareSerial SerialNano(1);
 void setup() {
    // Porta di DEBUG (USB) - Alziamo la velocità per i log pesanti
     Serial.begin(115200);
-    SerialNano.begin(38400, SERIAL_8N1, RX_NANO, TX_NANO);
+    SerialNano.begin(19200, SERIAL_8N1, RX_NANO, TX_NANO);
     
     #ifdef MOD_TEST
         delay(1000); // Pausa per far stabilizzare il monitor seriale

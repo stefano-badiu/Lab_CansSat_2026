@@ -51,6 +51,6 @@ void read_BMP280(){
     // aggiornamento della telemetria globale
     current_data.TEMPERATURE = bmp.readTemperature();
     current_data.ALTITUDE= altitude; //assegno il dato raccolto nella raccolta
-
+    current_data.PRESSURE=current_pressure;
 
 }

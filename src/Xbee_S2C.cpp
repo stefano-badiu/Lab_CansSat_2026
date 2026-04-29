@@ -34,6 +34,8 @@ void transmit_telemetry() {
     Serial.print(current_data.PARACHUTE_OPEN);   Serial.print(F(","));
     Serial.print(current_data.BATTERY_VOLTAGE_V); Serial.print(F(","));
     Serial.print(current_data.BATTERY_CURRENT_mA); Serial.print(F(","));
+    Serial.print(current_data.BATTERY_POWER_mW);   Serial.print(F(","));
+    Serial.print(current_data.BATTERY_CONSUMED_mWH); Serial.print(F(","));
     Serial.print(current_data.BATTERY_REMAINING_PCT);
     Serial.println(F(">"));
     
@@ -44,23 +46,29 @@ void check_radio_commands(){
     if (Serial.available()>0){
         char command = Serial.read();
     switch(command){
-        case 'O':
-        manual_override = false; break;
-        case 'I': 
-        current_data.STATE= STATE_IDLE;
-        manual_override = true; break;
-        case 'A':
-        current_data.STATE=STATE_ASCENT;
-        manual_override = true; break;
-        case 'S':
-        current_data.STATE=STATE_DESCENT_SLOW;
-        manual_override = true; break; //andrebbe forzato anche l'accensione oppure vogliamo un comando a parte?
-        case 'L':
-        current_data.STATE=STATE_LANDED;
-        manual_override = true; break;
-        case 'C':
-        calibration_BMP280(); break;
-        Serial.println(F("<ACK: CALIBRAZIONE ESEGUITA>"));
+            case 'O':
+                manual_override = false; 
+                break;
+            case 'I': 
+                change_state(STATE_IDLE);
+                manual_override = true; 
+                break;
+            case 'A':
+                change_state(STATE_ASCENT);
+                manual_override = true; 
+                break;
+            case 'S':
+                change_state(STATE_DESCENT_SLOW);
+                manual_override = true; 
+                break;
+            case 'L':
+                change_state(STATE_LANDED);
+                manual_override = true; 
+                break;
+            case 'C':
+            calibration_BMP280(); 
+            Serial.println(F("<ACK: CALIBRAZIONE ESEGUITA>"));
+            break;
         //case P: take_photo();  potremmo aggiungere questo comando per fare foto quando vogliamo
         default:
             // Ignora qualsiasi carattere che non sia O, I, A, S, L, C

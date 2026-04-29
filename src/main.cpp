@@ -26,12 +26,13 @@ void setup() {
 Wire.begin(); 
 Wire.setWireTimeout(25000, true);
 Serial.begin(9600); 
-SerialCamera.begin(38400); 
+SerialCamera.begin(19200); 
 
 /*In Arduino, se avvii due SoftwareSerial, lui ascolta solo l'ultima accesa.
 Dobbiamo dirgli di ignorare la fotocamera (che tanto deve solo trasmettere)
 e di tenere l'orecchio incollato al modulo GPS.*/
 focus_GPS();
+init_mission_control();
 current_data.TEAM_ID = 33; 
 current_data.MISSION_TIME = 0;
 current_data.STATE = STATE_IDLE;
@@ -94,7 +95,9 @@ current_data.BATTERY_REMAINING_PCT = 0;
         init_mission_control(); 
         init_BMP280(); // Inizializzazione
         init_GPS();
-        init_Xbee(); // --- AGGIUNTA XBEE: Inizializzazione seriale radio ---
+        init_Xbee();
+        batteryMonitor.init_INA219();
+        init_MPU6050(); // --- AGGIUNTA XBEE: Inizializzazione seriale radio ---
         FSM stato_salvato;
         EEPROM.get(0, stato_salvato); // Leggiamo il "Disco Nero"
         // Se lo stato non è IDLE, significa che eravamo già in volo e siamo crashati
@@ -148,7 +151,7 @@ void loop() {
         lastTelemetryTime = millis(); // Resetta il timer
         current_data.MISSION_TIME = millis(); // Aggiorna il tempo di missione
         compute_and_save_MPU6050();
-        //sono lenti, li aggiorno solo 1 volta al secondo
+    
         
         batteryMonitor.read_INA219();
         InaSample batterySample = batteryMonitor.getLastSample();

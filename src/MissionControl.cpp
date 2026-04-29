@@ -130,7 +130,9 @@ void change_state(FSM state){
         case STATE_IDLE:          photoInterval = 0;     break; // Ferma
         case STATE_ASCENT:        photoInterval = 5000; break; // 5 sec
         case STATE_DESCENT_FAST:  photoInterval = 2000;  break; // 2 sec
-        case STATE_DESCENT_SLOW:  photoInterval = 1000;  break; // 1 sec
+        case STATE_DESCENT_SLOW:  photoInterval = 2000;
+                                  servo_paracadute.write(90);        
+                                  current_data.PARACHUTE_OPEN = true;  break;
         case STATE_LANDED:        photoInterval = 0;     break; // Ferma
     }    
 
