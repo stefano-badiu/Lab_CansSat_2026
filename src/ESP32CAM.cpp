@@ -8,45 +8,51 @@ bool init_camera_hardware() {
     // 1. SPEGNIMENTO FORZATO FLASH LED: Evita consumi e interferenze con la SD
     pinMode(FLASH_LED_PIN, OUTPUT);
     digitalWrite(FLASH_LED_PIN, LOW);
-    camera_config_t config;
+camera_config_t config = {};
 
-    // Mappatura dei PIN (Traduzione dal .hpp alla libreria)
-    config.ledc_channel = LEDC_CHANNEL_0;
-    config.ledc_timer = LEDC_TIMER_0;
-    config.pin_d0 = Y2_GPIO_NUM;
-    config.pin_d1 = Y3_GPIO_NUM;
-    config.pin_d2 = Y4_GPIO_NUM;
-    config.pin_d3 = Y5_GPIO_NUM;
-    config.pin_d4 = Y6_GPIO_NUM;
-    config.pin_d5 = Y7_GPIO_NUM;
-    config.pin_d6 = Y8_GPIO_NUM;
-    config.pin_d7 = Y9_GPIO_NUM;
-    config.pin_xclk = XCLK_GPIO_NUM;
-    config.pin_pclk = PCLK_GPIO_NUM;
-    config.pin_vsync = VSYNC_GPIO_NUM;
-    config.pin_href = HREF_GPIO_NUM;
-    config.pin_sscb_sda = SIOD_GPIO_NUM;
-    config.pin_sscb_scl = SIOC_GPIO_NUM;
-    config.pin_pwdn = PWDN_GPIO_NUM;
-    config.pin_reset = RESET_GPIO_NUM;
+config.ledc_channel = LEDC_CHANNEL_0;
+config.ledc_timer = LEDC_TIMER_0;
 
-    //parametri fissi di sistema
-    config.xclk_freq_hz = 20000000;
-    config.pixel_format = PIXFORMAT_JPEG; // Usiamo sempre JPEG
+config.pin_d0 = Y2_GPIO_NUM;
+config.pin_d1 = Y3_GPIO_NUM;
+config.pin_d2 = Y4_GPIO_NUM;
+config.pin_d3 = Y5_GPIO_NUM;
+config.pin_d4 = Y6_GPIO_NUM;
+config.pin_d5 = Y7_GPIO_NUM;
+config.pin_d6 = Y8_GPIO_NUM;
+config.pin_d7 = Y9_GPIO_NUM;
+
+config.pin_xclk = XCLK_GPIO_NUM;
+config.pin_pclk = PCLK_GPIO_NUM;
+config.pin_vsync = VSYNC_GPIO_NUM;
+config.pin_href = HREF_GPIO_NUM;
+
+config.pin_sccb_sda = SIOD_GPIO_NUM;
+config.pin_sccb_scl = SIOC_GPIO_NUM;
+
+config.pin_pwdn = PWDN_GPIO_NUM;
+config.pin_reset = RESET_GPIO_NUM;
+
+config.xclk_freq_hz = 20000000;
+config.pixel_format = PIXFORMAT_JPEG;
+config.sccb_i2c_port = 0;
+
 
     //logica della Memoria (PSRAM Check)
-    if (psramFound()) {
-        // Se la memoria extra funziona, impostiamo i parametri per il Wi-Fi fluido
-        config.frame_size = FRAMESIZE_VGA; 
-        config.jpeg_quality = 12; 
-        config.fb_count = 2; // Doppio buffer per streaming fluido
-        config.grab_mode = CAMERA_GRAB_LATEST; // Prende sempre l'ultima foto scattata
-    } else {
-        // Modalità emergenza: poca memoria disponibile
-        config.frame_size = FRAMESIZE_SVGA;
-        config.jpeg_quality = 12;
-        config.fb_count = 1;
-    }
+if (psramFound()) {
+    config.frame_size = FRAMESIZE_VGA;
+    config.jpeg_quality = 12;
+    config.fb_count = 2;
+    config.fb_location = CAMERA_FB_IN_PSRAM;
+    config.grab_mode = CAMERA_GRAB_LATEST;
+} else {
+    config.frame_size = FRAMESIZE_QVGA;
+    config.jpeg_quality = 12;
+    config.fb_count = 1;
+    config.fb_location = CAMERA_FB_IN_DRAM;
+    config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+}
+
 
     //Comando di accensione e controllo errori
     esp_err_t err = esp_camera_init(&config);
@@ -94,11 +100,19 @@ void parse_incoming_data(const char* raw_string){
     }
 }
 else if (raw_string[0] == '<') {
-        // CASO 2: È il log della TELEMETRIA COMPLETA (Prefisso 'T')
-        // Esempio: "T;33;12000;2;150.5;25.3;..."
-        // Passiamo tutto (saltando il "T;") alla funzione di salvataggio
-        save_full_telemetry(raw_string + 1);
+    // Copia la stringa saltando il '<' iniziale
+    char clean[256];
+    strncpy(clean, raw_string + 1, sizeof(clean) - 1);
+    clean[sizeof(clean) - 1] = '\0'; // sicurezza: terminatore garantito
+
+    // Rimuovi il '>' finale se presente
+    int len = strlen(clean);
+    if (len > 0 && clean[len - 1] == '>') {
+        clean[len - 1] = '\0';
     }
+
+    save_full_telemetry(clean);
+}
 }
 // ---> NUOVA FUNZIONE PER SALVARE SOLO IL TESTO <---
 void save_full_telemetry(const char* csv_string) {

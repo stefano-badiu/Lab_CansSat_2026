@@ -1,9 +1,10 @@
 #include "MissionControl.hpp"
 #include <Arduino.h>
-#include <EEPROM.h>
+#include <MissionStorage.hpp>
 #include <Servo.h>
 
 bool manual_override = false;
+bool bmp_ok = false; // Variabile globale per indicare se il BMP280 è operativo
 unsigned long photoInterval = 0;
 Servo servo_paracadute;
 
@@ -122,7 +123,8 @@ void init_mission_control() {
 
 void change_state(FSM state){
     current_data.STATE= state;
-    EEPROM.put(0, current_data.STATE);
+    save_mission_state(current_data.STATE);
+
         //&&&&&&&&&&&&&&&&&stampa seriale per test&&&&&&&&&&&&&&&&&&&
         Serial.print("MISSION UPDATE: Passaggio allo stato ");
         Serial.println(state); 
@@ -141,9 +143,8 @@ void change_state(FSM state){
 
 
 void update_mission_state(){
-    if (manual_override == true) {
-        return; 
-    }
+   if (manual_override) return;
+    if (!bmp_ok) return; // FSM congelata, ma il resto del sistema gira
     switch(current_data.STATE) { 
         case STATE_IDLE:
         //azioni che dovrà eseguire in questo stato

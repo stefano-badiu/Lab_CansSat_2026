@@ -10,6 +10,7 @@
 #include "MissionControl.hpp"
 #include <EEPROM.h>
 #include "INA219.hpp"
+#include <math.h>
 // --- INTERRUTTORE DI MISSIONE ---
 #define MOD_TEST // %%%%%%%%%%%%Commenta questa riga per il lancio reale%%%%%%%%%%%%%
 
@@ -32,7 +33,6 @@ SerialCamera.begin(19200);
 Dobbiamo dirgli di ignorare la fotocamera (che tanto deve solo trasmettere)
 e di tenere l'orecchio incollato al modulo GPS.*/
 focus_GPS();
-init_mission_control();
 current_data.TEAM_ID = 33; 
 current_data.MISSION_TIME = 0;
 current_data.STATE = STATE_IDLE;
@@ -71,6 +71,7 @@ current_data.BATTERY_REMAINING_PCT = 0;
         if (!calibrate_MPU6050_accel(100, 50)) {Serial.println(F("AVVISO: Impossibile calibrare MPU6050 accelerometro"));} 
         else {Serial.println(F("MPU6050: Calibrazione OK"));}
         
+        init_mission_control();
         /*if(!init_MicroSD()) {Serial.println(F("ERRORE: MicroSD NON TROVATA"));} 
         else {
             Serial.println(F("MicroSD: OK"));
@@ -93,23 +94,36 @@ current_data.BATTERY_REMAINING_PCT = 0;
         #else
         delay(2000); // Pausa di sicurezza per stabilizzare l'elettronica
         init_mission_control(); 
-        init_BMP280(); // Inizializzazione
+        // In main.cpp, ramo #else
+bool bmp_ok = init_BMP280();
+
+if (bmp_ok) {
+    calibration_BMP280();
+} else {
+    // Logga l'errore via XBee e continua
+    Serial.println(F("<ERRORE: BMP280 assente. FSM disabilitata>"));
+}
         init_GPS();
         init_Xbee();
         batteryMonitor.init_INA219();
+        batteryMonitor.init_INA219();
+        batteryMonitor.setBatteryCapacity(1000.0f); // stessa capacità del test
+        batteryMonitor.setInitialSocPercent(100.0f);
         init_MPU6050(); // --- AGGIUNTA XBEE: Inizializzazione seriale radio ---
-        FSM stato_salvato;
-        EEPROM.get(0, stato_salvato); // Leggiamo il "Disco Nero"
-        // Se lo stato non è IDLE, significa che eravamo già in volo e siamo crashati
-        if (stato_salvato != STATE_IDLE && stato_salvato <= STATE_LANDED) {
-            current_data.STATE = stato_salvato;
-            EEPROM.get(4, P_0); // Ripristiniamo la missione!
-            // (Opzionale: potremmo voler inviare un segnale via XBee tipo "WARNING: REBOOT OCCURRED")
-        } else {
-            // Se era IDLE (o la memoria è vuota), è un avvio normale
-            current_data.STATE = STATE_IDLE;
-            calibration_BMP280();
-        }
+
+        
+SavedMission saved = load_saved_mission();
+
+if (saved.valid) {
+    current_data.STATE = saved.state;
+    P_0 = saved.p0;
+} else {
+    current_data.STATE = STATE_IDLE;
+    clear_saved_mission();
+    calibration_BMP280();
+}
+
+
         
     #endif
 }
