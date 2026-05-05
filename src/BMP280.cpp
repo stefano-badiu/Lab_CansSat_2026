@@ -2,7 +2,7 @@
 #include <Wire.h> //Serve per attivare la comunicazione sui pin A4 (SDA) e A5 (SCL) dell'Arduino Nano, che sono dedicati al bus I2C. 
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BMP280.h> //Contiene i comandi specifici per il chip BMP280
-#include <EEPROM.h>
+#include <MissionStorage.hpp> // Per salvare la pressione di riferimento P_0 e lo stato della missione in EEPROM
 extern Telemetry current_data;
 
 Adafruit_BMP280 bmp;  // indica che ho creato un oggetto virtuale che rappresenta il chip fisico (l'ho capito così)
@@ -36,7 +36,7 @@ bool calibration_BMP280(){
     
     // calcolo della pressione media al suolo
     P_0 = somma_P0 / 15.0F; 
-    EEPROM.put(4, P_0);
+    save_ground_pressure(P_0);
 
     return true;
 }

@@ -17,12 +17,12 @@ struct Telemetry{
     float ALTITUDE; //ovviamente servono i decimali per dati così, perciò userò float
     float PRESSURE; //invio i dati grezzi di pressione così da poterli elaborare meglio a terra
     float TEMPERATURE; // come prima
-    double GPS_LATITUDE; // double è per aggiungere accuratezza ad un numero float
-    double GPS_LONGITUDE; // come prima
+    float  GPS_LATITUDE; // double è per aggiungere accuratezza ad un numero float
+    float GPS_LONGITUDE; // come prima
     int GPS_SATS; // il numero di satelliti è un numero intero
-    double TILT_X;
-    double TILT_Y;
-    double TILT_Z;
+    float TILT_X;
+    float TILT_Y;
+    float TILT_Z;
     float ACC_X;
     float ACC_Y;
     float ACC_Z;
@@ -35,4 +35,4 @@ struct Telemetry{
     float BATTERY_REMAINING_PCT; 
     //potremmo voler includere altri dati, ne discuteremmo
 };
-const char* fsmToString(FSM state); // Converte uno stato della FSM in una stringa leggibile
+// const char* fsmToString(FSM state); // Converte uno stato della FSM in una stringa leggibile

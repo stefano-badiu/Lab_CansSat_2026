@@ -6,12 +6,13 @@
 #include "MPU6050.hpp"
 #include "GPS_PA6H.hpp"
 #include "Xbee_S2C.hpp"
-//#include "MicroSD.hpp"
 #include "MissionControl.hpp"
+#include "MissionStorage.hpp"
 #include <EEPROM.h>
 #include "INA219.hpp"
-// --- INTERRUTTORE DI MISSIONE ---
-#define MOD_TEST // %%%%%%%%%%%%Commenta questa riga per il lancio reale%%%%%%%%%%%%%
+#include <math.h>
+
+
 
 INA219BatteryMonitor batteryMonitor;
 Telemetry current_data;
@@ -32,7 +33,6 @@ SerialCamera.begin(19200);
 Dobbiamo dirgli di ignorare la fotocamera (che tanto deve solo trasmettere)
 e di tenere l'orecchio incollato al modulo GPS.*/
 focus_GPS();
-init_mission_control();
 current_data.TEAM_ID = 33; 
 current_data.MISSION_TIME = 0;
 current_data.STATE = STATE_IDLE;
@@ -53,67 +53,32 @@ current_data.BATTERY_CURRENT_mA = 0;
 current_data.BATTERY_POWER_mW = 0;
 current_data.BATTERY_CONSUMED_mWH = 0;
 current_data.BATTERY_REMAINING_PCT = 0;
+delay(2000); // Pausa di sicurezza per stabilizzare l'elettronica
+init_mission_control(); // Controlla se la missione è iniziata (lancio rilevato)
+bool bmp_ok = init_BMP280();
 
-    #ifdef MOD_TEST
-        // Logica specifica per il TEST (PC)
-        while (!Serial); // Aspetta che si accenda il monitor seriale
-        Serial.println(F("--- SPUTNIK-33cl: SYSTEM CHECK (TEST) ---"));
-
-        if (!init_GPS()) {Serial.println(F("AVVISO: GPS non risponde."));} 
-        else {Serial.println(F("GPS: OK"));}
-        
-        if (!init_BMP280()) {Serial.println(F("ERRORE CRITICO: BMP280 non trovato!"));} 
-        else {Serial.println(F("BMP280: OK"));}
-
-        if(!init_MPU6050()) {Serial.println(F("ERRORE: MPU6050 NON TROVATO"));} 
-        else {Serial.println(F("MPU6050: OK"));}
-
-        if (!calibrate_MPU6050_accel(100, 50)) {Serial.println(F("AVVISO: Impossibile calibrare MPU6050 accelerometro"));} 
-        else {Serial.println(F("MPU6050: Calibrazione OK"));}
-        
-        /*if(!init_MicroSD()) {Serial.println(F("ERRORE: MicroSD NON TROVATA"));} 
-        else {
-            Serial.println(F("MicroSD: OK"));
-            if (createLogFile()&& writeLogHeader()) {
-                flushLogFile();
-                Serial.println(F("Log file pronto"));
-            } else {
-               Serial.println(F("ERRORE: Impossibile creare file di log"));
-            }
-        }*/
-    
-        if (!batteryMonitor.init_INA219()) {
-            Serial.println(F("ERRORE: Impossibile inizializzare il monitor batteria INA219."));
-        } else {
-            Serial.println(F("Monitor batteria INA219: OK"));
-            batteryMonitor.setBatteryCapacity(1000.0f); // Imposta la capacità della batteria a 1000 mWh per i test
-            batteryMonitor.setInitialSocPercent(100.0f); // Assume che la batteria sia completamente carica all'inizio
-        }
-    
-        #else
-        delay(2000); // Pausa di sicurezza per stabilizzare l'elettronica
-        init_mission_control(); 
-        init_BMP280(); // Inizializzazione
+if (bmp_ok) {
+    calibration_BMP280();
+} else {
+    // Logga l'errore via XBee e continua
+    Serial.println(F("<ERRORE: BMP280 assente. FSM disabilitata>"));
+}
         init_GPS();
         init_Xbee();
         batteryMonitor.init_INA219();
+        batteryMonitor.setBatteryCapacity(1000.0f); // stessa capacità del test
+        batteryMonitor.setInitialSocPercent(100.0f);
         init_MPU6050(); // --- AGGIUNTA XBEE: Inizializzazione seriale radio ---
-        FSM stato_salvato;
-        EEPROM.get(0, stato_salvato); // Leggiamo il "Disco Nero"
-        // Se lo stato non è IDLE, significa che eravamo già in volo e siamo crashati
-        if (stato_salvato != STATE_IDLE && stato_salvato <= STATE_LANDED) {
-            current_data.STATE = stato_salvato;
-            EEPROM.get(4, P_0); // Ripristiniamo la missione!
-            // (Opzionale: potremmo voler inviare un segnale via XBee tipo "WARNING: REBOOT OCCURRED")
+        SavedMission saved = load_saved_mission();
+        if (saved.valid) {
+            P_0 = saved.p0;
+            change_state(saved.state);
         } else {
-            // Se era IDLE (o la memoria è vuota), è un avvio normale
             current_data.STATE = STATE_IDLE;
+            clear_saved_mission();
             calibration_BMP280();
         }
-        
-    #endif
 }
-
 
 unsigned long lastTelemetryTime = 0;
 unsigned long lastPhotoTime = 0;
@@ -121,6 +86,7 @@ void loop() {
     static unsigned long lastBMPTime = 0;
     const unsigned long intervallo_BMP = 50; // 50ms = 20 letture al secondo
     unsigned long inizio_ciclo = millis();
+    unsigned long tempo_da_telemetria = millis() - lastTelemetryTime;
 
     check_radio_commands();
     accumulate_MPU6050_data(); // raccoglie l'accelerazione a raffica
@@ -134,7 +100,7 @@ void loop() {
     }
 
     // Qui aggiungeremo il resto dei sensori
-    if (photoInterval > 0 && (millis() - lastPhotoTime >= photoInterval)) {
+    if (photoInterval > 0 && (millis() - lastPhotoTime >= photoInterval) && (tempo_da_telemetria > 400 && tempo_da_telemetria < 600)) {
         lastPhotoTime = millis(); // Resetta il timer della fotocamera
         // Invio diretto senza classe String (Zero frammentazione RAM!)
         // Usiamo la macro F() per salvare anche i punti e virgola nella memoria Flash
@@ -162,78 +128,35 @@ void loop() {
         current_data.BATTERY_REMAINING_PCT = batterySample.remaining_pct;
 
     SerialCamera.print(F("<"));
-    SerialCamera.print(current_data.TEAM_ID);              SerialCamera.print(F(","));
-    SerialCamera.print(current_data.MISSION_TIME);         SerialCamera.print(F(","));
-    SerialCamera.print(current_data.STATE);                SerialCamera.print(F(","));
-    SerialCamera.print(current_data.ALTITUDE);             SerialCamera.print(F(","));
-    SerialCamera.print(current_data.PRESSURE);             SerialCamera.print(F(",")); 
-    SerialCamera.print(current_data.TEMPERATURE);          SerialCamera.print(F(","));
-    SerialCamera.print(current_data.GPS_LATITUDE, 6);      SerialCamera.print(F(","));
-    SerialCamera.print(current_data.GPS_LONGITUDE, 6);     SerialCamera.print(F(","));
-    SerialCamera.print(current_data.GPS_SATS);             SerialCamera.print(F(","));
-    SerialCamera.print(current_data.TILT_X);               SerialCamera.print(F(","));
-    SerialCamera.print(current_data.TILT_Y);               SerialCamera.print(F(","));
-    SerialCamera.print(current_data.TILT_Z);               SerialCamera.print(F(","));
-    SerialCamera.print(current_data.ACC_X);                SerialCamera.print(F(","));
-    SerialCamera.print(current_data.ACC_Y);                SerialCamera.print(F(","));
-    SerialCamera.print(current_data.ACC_Z);                SerialCamera.print(F(","));
-    SerialCamera.print(current_data.PARACHUTE_OPEN);       SerialCamera.print(F(","));
-    SerialCamera.print(current_data.BATTERY_VOLTAGE_V);    SerialCamera.print(F(","));
-    SerialCamera.print(current_data.BATTERY_CURRENT_mA);   SerialCamera.print(F(","));
-    SerialCamera.print(current_data.BATTERY_POWER_mW);     SerialCamera.print(F(","));
-    SerialCamera.print(current_data.BATTERY_CONSUMED_mWH); SerialCamera.print(F(","));
-    SerialCamera.print(current_data.BATTERY_REMAINING_PCT);
-    SerialCamera.println(F(">"));
+        SerialCamera.print(current_data.TEAM_ID);              SerialCamera.print(F(","));
+        SerialCamera.print(current_data.MISSION_TIME);         SerialCamera.print(F(","));
+        SerialCamera.print(current_data.STATE);                SerialCamera.print(F(","));
+        SerialCamera.print(current_data.ALTITUDE);             SerialCamera.print(F(","));
+        SerialCamera.print(current_data.PRESSURE);             SerialCamera.print(F(",")); 
+        SerialCamera.print(current_data.TEMPERATURE);          SerialCamera.print(F(","));
+        SerialCamera.print(current_data.GPS_LATITUDE, 6);      SerialCamera.print(F(","));
+        SerialCamera.print(current_data.GPS_LONGITUDE, 6);     SerialCamera.print(F(","));
+        SerialCamera.print(current_data.GPS_SATS);             SerialCamera.print(F(","));
+        SerialCamera.print(current_data.TILT_X);               SerialCamera.print(F(","));
+        SerialCamera.print(current_data.TILT_Y);               SerialCamera.print(F(","));
+        SerialCamera.print(current_data.TILT_Z);               SerialCamera.print(F(","));
+        SerialCamera.print(current_data.ACC_X);                SerialCamera.print(F(","));
+        SerialCamera.print(current_data.ACC_Y);                SerialCamera.print(F(","));
+        SerialCamera.print(current_data.ACC_Z);                SerialCamera.print(F(","));
+        SerialCamera.print(current_data.PARACHUTE_OPEN);       SerialCamera.print(F(","));
+        SerialCamera.print(current_data.BATTERY_VOLTAGE_V);    SerialCamera.print(F(","));
+        SerialCamera.print(current_data.BATTERY_CURRENT_mA);   SerialCamera.print(F(","));
+        SerialCamera.print(current_data.BATTERY_POWER_mW);     SerialCamera.print(F(","));
+        SerialCamera.print(current_data.BATTERY_CONSUMED_mWH); SerialCamera.print(F(","));
+        SerialCamera.print(current_data.BATTERY_REMAINING_PCT);
+        SerialCamera.println(F(">"));
    
-    #ifdef MOD_TEST
-        // Telemetria Dettagliata per il TEST (PC)
-        Serial.print(F("Time: ")); Serial.print(current_data.MISSION_TIME);
-            Serial.print(F(" | Alt: ")); Serial.print(current_data.ALTITUDE); Serial.print(F("m"));
-            Serial.print(F(" | Lon: ")); Serial.print(current_data.GPS_LONGITUDE, 6);
-            Serial.print(F(" | Lat: ")); Serial.print(current_data.GPS_LATITUDE, 6);
-            Serial.print(F(" | Sats: ")); Serial.println(current_data.GPS_SATS);
-            
-            Serial.print(F("Temp: ")); Serial.print(current_data.TEMPERATURE); Serial.println(F(" *C"));
-            
-            Serial.print(F("TILT_X: ")); Serial.print(current_data.TILT_X);
-            Serial.print(F("  TILT_Y: ")); Serial.print(current_data.TILT_Y);
-            Serial.print(F("  TILT_Z: ")); Serial.println(current_data.TILT_Z);
-            
-            Serial.print(F("ACC_X: ")); Serial.print(current_data.ACC_X);
-            Serial.print(F("  ACC_Y: ")); Serial.print(current_data.ACC_Y);
-            Serial.print(F("  ACC_Z: ")); Serial.println(current_data.ACC_Z);
-            
-            Serial.print(F("Bat Volt: ")); Serial.print(current_data.BATTERY_VOLTAGE_V);
-            Serial.print(F(" V | Cur: ")); Serial.print(current_data.BATTERY_CURRENT_mA);
-            Serial.print(F(" mA | Pwr: ")); Serial.print(current_data.BATTERY_POWER_mW);
-            Serial.print(F(" mW | Rem: ")); Serial.print(current_data.BATTERY_REMAINING_PCT);
-            Serial.println(F(" %"));
-        transmit_telemetry();
-        
-        
-        
-    #else
-        // Telemetria CSV Compatta per la Ground Station (XBee)
+// Telemetria CSV Compatta per la Ground Station (XBee)
         // Formato: TEAM_ID, MISSION_TIME, STATE, ALTITUDE, TEMP, ... %%%%%%%%DA RIVEDERE%%%%%%%%%%%
-       transmit_telemetry(); // --- AGGIUNTA XBEE: Invio effettivo via radio ---
-       
-    #endif
-    /*
-    //Salvataggio su SD sempre attivo
-        if (is_MicroSD_ready()) {
-            if (logTelemetry(current_data)) {
-                flushLogFile();
-               #ifdef MOD_TEST
-                    Serial.println(F("-> Dati salvati su SD."));
-                #endif
-            }
-         }*/
-         #ifdef MOD_TEST
-             unsigned long tempo_di_esecuzione = millis() - inizio_ciclo; 
-             Serial.print(F(">> SFORZO CPU MAX (Sensori + SD) (ms): "));
-             Serial.println(tempo_di_esecuzione);
-             Serial.println(F("-----------------------------------"));
-         #endif
-    }
+        transmit_telemetry(); // --- AGGIUNTA XBEE: Invio effettivo via radio ---
         
+unsigned long tempo_di_esecuzione = millis() - inizio_ciclo; 
+        Serial.print(F(">> SFORZO CPU MAX (Sensori + SD) (ms): "));
+        Serial.println(tempo_di_esecuzione);    
+            }
 }

@@ -14,28 +14,9 @@ void setup() {
     Serial.begin(115200);
     SerialNano.begin(19200, SERIAL_8N1, RX_NANO, TX_NANO);
     
-    #ifdef MOD_TEST
-        delay(1000); // Pausa per far stabilizzare il monitor seriale
-        Serial.println("\n--- SPUTNIK-33cl: CAMERA SYSTEM CHECK (TEST) ---");
-        
-        if (init_camera_hardware()) {
-            Serial.println("Hardware (Camera + SD): OK.");
-            
-            // ---> ATTIVAZIONE TEST VIDEO <---
-            Serial.println("Avvio Test di Streaming per messa a fuoco...");
-            setup_wifi_stream();
-            // --------------------------------
-            
-            Serial.println("In attesa di ordini di scatto..."); // <- La tua riga originale
-        } else {
-            Serial.println("ERRORE CRITICO: Inizializzazione Hardware fallita.");
-            Serial.println("Controllare la MicroSD e il montaggio della lente."); // <- La tua riga originale
-        }
-    #else
-        // 2. Logica di avvio per il LANCIO (Modalità Silenziosa)
-        delay(2000); // Pausa di sicurezza per far stabilizzare le tensioni della batteria
-        init_camera_hardware(); 
-    #endif
+// 2. Logica di avvio per il LANCIO (Modalità Silenziosa)
+ delay(2000); // Pausa di sicurezza per far stabilizzare le tensioni della batteria
+init_camera_hardware(); 
 }
 
 void loop() {

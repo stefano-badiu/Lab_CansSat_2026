@@ -1,12 +1,18 @@
 #include "Xbee_S2C.hpp"
 #include <Arduino.h>     // Serial, millis
 #include "BMP280.hpp"
+#include "MPU6050.hpp"
+#include "GPS_PA6H.hpp"
+#include "INA219.hpp"
+#include "Sputnik_Identity.hpp"
+#include "MissionStorage.hpp"
 #include "MissionControl.hpp"
 
 
 
     extern Telemetry current_data; 
     extern bool manual_override;
+    extern INA219BatteryMonitor batteryMonitor;
 
 void init_Xbee() {
     // La porta Seriale (Pin 0 e 1) è già stata aperta nel setup del main a 9600 baud.
@@ -46,6 +52,25 @@ void check_radio_commands(){
     if (Serial.available()>0){
         char command = Serial.read();
     switch(command){
+            case 'R': // R = RESET GENERALE E CALIBRAZIONE PRE-LANCIO
+            // 1. Reset Memoria Voli Precedenti
+            clear_saved_mission();
+            
+            // 2. Forziamo la FSM allo stato iniziale (in caso fossimo bloccati in un altro stato)
+            change_state(STATE_IDLE);
+            
+            // 3. Calibrazione Barometro (Imposta la Quota Zero alle condizioni meteo attuali)
+            calibration_BMP280(); 
+            
+            // 4. Calibrazione Inerziale (Imposta l'Assetto Zero - Il CanSat DEVE essere fermo)
+            calibrate_MPU6050_accel(100, 10);
+            
+            // 5. Reset del consumo energetico (Inizia a contare i mAh da zero per questo volo)
+            batteryMonitor.resetEnergyCounter(); 
+
+            // Conferma a terra
+            Serial.println(F("<ACK: RESET GENERALE E CALIBRAZIONE COMPLETATI. SISTEMA ARMATO>"));
+            break;
             case 'O':
                 manual_override = false; 
                 break;
@@ -68,6 +93,10 @@ void check_radio_commands(){
             case 'C':
             calibration_BMP280(); 
             Serial.println(F("<ACK: CALIBRAZIONE ESEGUITA>"));
+            break;
+            case 'M': // M = calibrazione MPU
+            calibrate_MPU6050_accel(100, 10);
+            Serial.println(F("<ACK: CALIBRAZIONE MPU6050 ESEGUITA>"));
             break;
         //case P: take_photo();  potremmo aggiungere questo comando per fare foto quando vogliamo
         default:

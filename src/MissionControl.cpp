@@ -1,9 +1,11 @@
 #include "MissionControl.hpp"
 #include <Arduino.h>
-#include <EEPROM.h>
+#include <MissionStorage.hpp>
 #include <Servo.h>
+#include <math.h>
 
 bool manual_override = false;
+bool bmp_ok = false; // Variabile globale per indicare se il BMP280 è operativo
 unsigned long photoInterval = 0;
 Servo servo_paracadute;
 
@@ -90,9 +92,9 @@ bool detect_landing() {
     static float altitudine_riferimento = 0;
 
     float acc_totale = sqrt((current_data.ACC_X* current_data.ACC_X) + (current_data.ACC_Y*current_data.ACC_Y) + (current_data.ACC_Z*current_data.ACC_Z));
-    float diff_acc = abs(acc_totale - 1);
+    float diff_acc = fabs(acc_totale - 1);
 
-    float diff_alt = abs(current_data.ALTITUDE - altitudine_riferimento); // calcoliamo quanto l'altitudine è cambiata dall'ultimo controllo
+    float diff_alt = fabs(current_data.ALTITUDE - altitudine_riferimento); // calcoliamo quanto l'altitudine è cambiata dall'ultimo controllo
 
     if (diff_alt < eps_alt && diff_acc < eps_acc) {
         // Se è la prima volta che lo vediamo fermo, facciamo partire il cronometro
@@ -122,7 +124,8 @@ void init_mission_control() {
 
 void change_state(FSM state){
     current_data.STATE= state;
-    EEPROM.put(0, current_data.STATE);
+    save_mission_state(current_data.STATE);
+
         //&&&&&&&&&&&&&&&&&stampa seriale per test&&&&&&&&&&&&&&&&&&&
         Serial.print("MISSION UPDATE: Passaggio allo stato ");
         Serial.println(state); 
@@ -141,9 +144,8 @@ void change_state(FSM state){
 
 
 void update_mission_state(){
-    if (manual_override == true) {
-        return; 
-    }
+   if (manual_override) return;
+    if (!bmp_ok) return; // FSM congelata, ma il resto del sistema gira
     switch(current_data.STATE) { 
         case STATE_IDLE:
         //azioni che dovrà eseguire in questo stato
@@ -168,8 +170,6 @@ void update_mission_state(){
         break;
 
         case STATE_DESCENT_SLOW:
-        servo_paracadute.write(90);
-        current_data.PARACHUTE_OPEN = true;
             if(detect_landing()){
                 change_state(STATE_LANDED);
             }

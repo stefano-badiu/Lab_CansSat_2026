@@ -90,8 +90,8 @@ void compute_and_save_MPU6050() {
     const float magnitude = sqrtf((media_ax * media_ax) + (media_ay * media_ay) + (media_az * media_az));
 
     if (magnitude > 0.0F) {
-        current_data.TILT_X = atan2f(media_ax, media_az) * kRadToDeg;
-        current_data.TILT_Y = atan2f(-media_ay, sqrtf((media_ay*media_ay)+(media_az*media_az))) * kRadToDeg;
+        current_data.TILT_X = atan2f(media_ay, media_az) * kRadToDeg;
+        current_data.TILT_Y = atan2f(-media_ax, sqrtf((media_ay*media_ay)+(media_az*media_az))) * kRadToDeg;
         current_data.TILT_Z = 0.0F;
     }
 

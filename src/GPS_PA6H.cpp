@@ -9,12 +9,19 @@ void focus_GPS() {
     gpsSerial.listen();
 }
 
-bool init_GPS(){
+bool init_GPS() {
     gpsSerial.begin(9600);
     gpsSerial.println("$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*28");
-    // Frequenza di aggiornamento a 1Hz
     gpsSerial.println("$PMTK220,1000*1F");
-    return true;
+
+    // Aspetta fino a 2 secondi che il modulo risponda con qualcosa
+    unsigned long start = millis();
+    while (millis() - start < 2000) {
+        if (gpsSerial.available() > 0) {
+            return true; // Il modulo sta trasmettendo
+        }
+    }
+    return false; // Nessun dato: modulo assente o scollegato
 }
 
 void update_GPS_data(){
