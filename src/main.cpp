@@ -32,7 +32,6 @@ SerialCamera.begin(19200);
 /*In Arduino, se avvii due SoftwareSerial, lui ascolta solo l'ultima accesa.
 Dobbiamo dirgli di ignorare la fotocamera (che tanto deve solo trasmettere)
 e di tenere l'orecchio incollato al modulo GPS.*/
-focus_GPS();
 current_data.TEAM_ID = 33; 
 current_data.MISSION_TIME = 0;
 current_data.STATE = STATE_IDLE;
@@ -55,30 +54,35 @@ current_data.BATTERY_CONSUMED_mWH = 0;
 current_data.BATTERY_REMAINING_PCT = 0;
 delay(2000); // Pausa di sicurezza per stabilizzare l'elettronica
 init_mission_control(); // Controlla se la missione è iniziata (lancio rilevato)
-bool bmp_ok = init_BMP280();
+// 1. Inizializza i sensori principali
+init_GPS();
+focus_GPS(); // Mette il GPS in modalità "focus on sky" per migliorare il fix satellitare
+init_Xbee();
+batteryMonitor.init_INA219();
+batteryMonitor.setBatteryCapacity(BATTERY_CAPACITY_MWH);
+batteryMonitor.setInitialSocPercent(100.0f);
+init_MPU6050();
+// 2. Avvia e verifica il barometro
+bmp_ok = init_BMP280();
 
-if (bmp_ok) {
-    calibration_BMP280();
+// 3. Gestione memoria e calibrazione
+SavedMission saved = load_saved_mission();
+
+if (saved.p0_valid) {
+    P_0 = saved.p0;
+}
+if (saved.valid) {
+    change_state(saved.state);
 } else {
-    // Logga l'errore via XBee e continua
-    Serial.println(F("<ERRORE: BMP280 assente. FSM disabilitata>"));
+    current_data.STATE = STATE_IDLE;
+
+    if (bmp_ok && !saved.p0_valid) {
+        calibration_BMP280();
+    }
 }
-        init_GPS();
-        init_Xbee();
-        batteryMonitor.init_INA219();
-        batteryMonitor.setBatteryCapacity(1000.0f); // stessa capacità del test
-        batteryMonitor.setInitialSocPercent(100.0f);
-        init_MPU6050(); // --- AGGIUNTA XBEE: Inizializzazione seriale radio ---
-        SavedMission saved = load_saved_mission();
-        if (saved.valid) {
-            P_0 = saved.p0;
-            change_state(saved.state);
-        } else {
-            current_data.STATE = STATE_IDLE;
-            clear_saved_mission();
-            calibration_BMP280();
-        }
 }
+
+
 
 unsigned long lastTelemetryTime = 0;
 unsigned long lastPhotoTime = 0;
@@ -94,9 +98,10 @@ void loop() {
     // 3. Il barometro e la FSM vengono aggiornati solo ogni 50ms
     if (millis() - lastBMPTime >= intervallo_BMP) {
         lastBMPTime = millis();
-        
-        read_BMP280(); // Ora il calcolo pesante pow() viene eseguito "solo" 20 volte/s
-        update_mission_state(); // La FSM valuta la nuova altitudine calcolata
+        if (bmp_ok) {             
+            read_BMP280(); 
+            update_mission_state(); 
+        }// La FSM valuta la nuova altitudine calcolata
     }
 
     // Qui aggiungeremo il resto dei sensori
@@ -131,8 +136,7 @@ void loop() {
         SerialCamera.print(current_data.TEAM_ID);              SerialCamera.print(F(","));
         SerialCamera.print(current_data.MISSION_TIME);         SerialCamera.print(F(","));
         SerialCamera.print(current_data.STATE);                SerialCamera.print(F(","));
-        SerialCamera.print(current_data.ALTITUDE);             SerialCamera.print(F(","));
-        SerialCamera.print(current_data.PRESSURE);             SerialCamera.print(F(",")); 
+        SerialCamera.print(current_data.ALTITUDE);             SerialCamera.print(F(",")); 
         SerialCamera.print(current_data.TEMPERATURE);          SerialCamera.print(F(","));
         SerialCamera.print(current_data.GPS_LATITUDE, 6);      SerialCamera.print(F(","));
         SerialCamera.print(current_data.GPS_LONGITUDE, 6);     SerialCamera.print(F(","));
@@ -148,7 +152,8 @@ void loop() {
         SerialCamera.print(current_data.BATTERY_CURRENT_mA);   SerialCamera.print(F(","));
         SerialCamera.print(current_data.BATTERY_POWER_mW);     SerialCamera.print(F(","));
         SerialCamera.print(current_data.BATTERY_CONSUMED_mWH); SerialCamera.print(F(","));
-        SerialCamera.print(current_data.BATTERY_REMAINING_PCT);
+        SerialCamera.print(current_data.BATTERY_REMAINING_PCT);SerialCamera.print(F(","));
+        SerialCamera.print(current_data.PRESSURE);             
         SerialCamera.println(F(">"));
    
 // Telemetria CSV Compatta per la Ground Station (XBee)

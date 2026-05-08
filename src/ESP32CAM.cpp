@@ -57,7 +57,7 @@ if (psramFound()) {
         Serial.printf("ERRORE: Inizializzazione Camera Fallita! Codice: 0x%x", err);
         return false;
     }
-/*    if (!SD_MMC.begin("/sdcard", true)) {
+    if (!SD_MMC.begin("/sdcard", true)) {
         Serial.println("ERRORE: Montaggio SD Fallito!");
         return false;
     } //Il "true" finale libera i pin 12 e 13 per la Seriale
@@ -67,13 +67,13 @@ if (psramFound()) {
     if (!SD_MMC.exists("/telemetria_completa.csv")) {
         File headerFile = SD_MMC.open("/telemetria_completa.csv", FILE_WRITE);
         if (headerFile) {
-            headerFile.println("TEAM_ID,MISSION_TIME,STATE,ALTITUDE,PRESSURE,TEMPERATURE,GPS_LAT,GPS_LON,GPS_SATS,TILT_X,TILT_Y,TILT_Z,ACC_X,ACC_Y,ACC_Z,PARACHUTE_OPEN,BAT_VOLT,BAT_mA,BAT_mW,BAT_mWh,BAT_PCT");
+            headerFile.println("TEAM_ID,MISSION_TIME,STATE,ALTITUDE,TEMPERATURE,GPS_LAT,GPS_LON,GPS_SATS,TILT_X,TILT_Y,TILT_Z,ACC_X,ACC_Y,ACC_Z,PARACHUTE_OPEN,BAT_VOLT,BAT_mA,BAT_mW,BAT_mWh,BAT_PCT,PRESSURE");
             headerFile.close();
             Serial.println("-> Nuovo file di telemetria creato con intestazione.");
         }
     }
 
-*/
+
 /*
     // --- SETTAGGI FOTOGRAFICI MANUALI ---
     sensor_t * s = esp_camera_sensor_get();
@@ -128,13 +128,13 @@ else if (raw_string[0] == '<') {
 void save_full_telemetry(const char* csv_string) {
     Serial.println("Telemetria ricevuta dal Nano (Salvataggio SD disabilitato per test)");
     // Apre il file principale, se non esiste lo crea
-    /*File dataFile = SD_MMC.open("/telemetria_completa.csv", FILE_APPEND);
+File dataFile = SD_MMC.open("/telemetria_completa.csv", FILE_APPEND);
     if (dataFile) {
         dataFile.println(csv_string); // Stampa l'intera stringa così com'è
         dataFile.close();
     } else {
         Serial.println("ERRORE: Impossibile scrivere la telemetria su SD.");
-    }*/ //%%%%%%%%%%%%%%%%%%%%%%%%%%%%per test va commentato finchè non abbiamo la sd
+    }//%%%%%%%%%%%%%%%%%%%%%%%%%%%%per test va commentato finchè non abbiamo la sd
 }
 
 void capture_and_save(const Photo_Data &data) {
@@ -156,7 +156,7 @@ void capture_and_save(const Photo_Data &data) {
     }
     Serial.println("CLICK! Comando foto ricevuto e frame catturato (Salvataggio SD disabilitato)");
     //apertura SD (Passiamo direttamente il buffer nome_file)
-    /*File Pfile = SD_MMC.open(nome_file, FILE_WRITE);
+    File Pfile = SD_MMC.open(nome_file, FILE_WRITE);
     if (Pfile){
         Pfile.write(fb->buf, fb->len);
         Pfile.close();
@@ -169,7 +169,7 @@ void capture_and_save(const Photo_Data &data) {
     if (CSV){
         CSV.println(dati_csv); 
         CSV.close();
-    }*/ //%%%%%%%%%%%%%%%%%%%%%%%%%%%%per test va commentato finchè non abbiamo la sd
+    } //%%%%%%%%%%%%%%%%%%%%%%%%%%%%per test va commentato finchè non abbiamo la sd
     esp_camera_fb_return(fb);
 
 }

@@ -1,8 +1,6 @@
 #include <Arduino.h>
 #include "ESP32CAM.hpp" // La tua libreria personalizzata
 
-// --- INTERRUTTORE DI MISSIONE ---
-#define MOD_TEST // %%%%%%%%%%%%Commenta questa riga per il lancio reale%%%%%%%%%%%%%
 // 1. Definiamo la nuova seriale hardware
 // UART1 dell'ESP32: RX su pin 13, TX su pin 12 (opzionale)
 HardwareSerial SerialNano(1); 
@@ -29,13 +27,7 @@ void loop() {
 
         // Se troviamo il carattere di fine riga (\n) o il buffer è pieno
         if (c == '\n' || index >= 254) {
-            buffer[index] = '\0'; // Chiudiamo la stringa
-            
-            #ifdef MOD_TEST
-                Serial.print("Dato ricevuto dal Nano: ");
-                Serial.println(buffer);
-            #endif
-            
+            buffer[index] = '\0'; // Chiudiamo la stringa 
             // In volo o in test, il parser viene chiamato SEMPRE e solo UNA volta
             parse_incoming_data(buffer); 
             

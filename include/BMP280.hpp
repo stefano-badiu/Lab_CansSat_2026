@@ -2,8 +2,14 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BMP280.h> 
 #include "Sputnik_Identity.hpp"
+
 extern Telemetry current_data; // Informa il driver che il posto dove inserire i dati esiste già (nel main) e non deve crearne uno.
 extern float P_0;
+extern float h_filt;
+extern float v_vert;
+extern float h_max;
+
 bool init_BMP280();  // con il comando bool ti aspetti che dalla funzione esca una condizione: V/F, essendo init_BME280 una funzione di inizializzazione, controlla solo se è tutto ok, mi basta sapere appunto se è ok:V, o meno:F
 void read_BMP280();  // con il comando void ... la funzione legge cosa succede dentro il sensore e 
 bool calibration_BMP280();
+void reset_BMP280_flight_estimator();

@@ -2,7 +2,8 @@
 #include "Sputnik_Identity.hpp"
 
 struct SavedMission {
-    bool valid;
+    bool valid;      // missione/stato FSM valido
+    bool p0_valid;   // pressione P0 valida
     FSM state;
     float p0;
 };
