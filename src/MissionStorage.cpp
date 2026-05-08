@@ -60,13 +60,13 @@ SavedMission load_saved_mission() {
 }
 
 void save_mission_state(FSM state) {
-    EEPROM.write(ADDR_MISSION_MAGIC, MAGIC_BYTE);
     EEPROM.put(ADDR_STATE, static_cast<uint8_t>(state));
+    EEPROM.write(ADDR_MISSION_MAGIC, MAGIC_BYTE);    
 }
 
 void save_ground_pressure(float p0) {
-    EEPROM.write(ADDR_P0_MAGIC, MAGIC_BYTE);
     EEPROM.put(ADDR_PRESSURE, p0);
+    EEPROM.write(ADDR_P0_MAGIC, MAGIC_BYTE);   
 }
 
 void clear_saved_mission() {

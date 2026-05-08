@@ -12,28 +12,23 @@ static constexpr uint8_t kMpuAddress = 0x68;     // Indirizzo I2C standard del M
 static constexpr float kRadToDeg = 57.2957795F;  // Fattore di conversione da radianti a gradi
 static bool mpuReady = false;                    // Variabile che indica se il sensore è stato inizializzato correttamente
 
-static int16_t readAxisRegister(uint8_t registerAddress) {   // Funzione interna che legge 2 byte da un registro del sensore
-    Wire.beginTransmission(kMpuAddress);                     // Avvia la comunicazione I2C con il MPU6050
-    Wire.write(registerAddress);                             // Dice al sensore quale registro vogliamo leggere
+static bool readAccelRaw(int16_t& axRaw, int16_t& ayRaw, int16_t& azRaw) {
+    Wire.beginTransmission(kMpuAddress);
+    Wire.write(0x3B);
 
-    if (Wire.endTransmission(false) != 0) {                  // Invia il registro senza chiudere il bus I2C
-        return 0;                                            // Se c'è errore nella trasmissione, restituisce 0
+    if (Wire.endTransmission(false) != 0) {
+        return false;
     }
 
-    if (Wire.requestFrom(static_cast<int>(kMpuAddress), 2) != 2) {  // Chiede 2 byte consecutivi al sensore
-        return 0;                                                    // Se non arrivano esattamente 2 byte, errore
+    if (Wire.requestFrom(static_cast<int>(kMpuAddress), 6) != 6) {
+        return false;
     }
 
-    const int16_t highByte = Wire.read();                    // Legge il byte alto del dato
-    const int16_t lowByte = Wire.read();                     // Legge il byte basso del dato
+    axRaw = static_cast<int16_t>((static_cast<uint16_t>(Wire.read()) << 8) | Wire.read());
+    ayRaw = static_cast<int16_t>((static_cast<uint16_t>(Wire.read()) << 8) | Wire.read());
+    azRaw = static_cast<int16_t>((static_cast<uint16_t>(Wire.read()) << 8) | Wire.read());
 
-    return static_cast<int16_t>((highByte << 8) | lowByte); // Ricompone i due byte in un solo valore signed a 16 bit
-}
-
-static float clampUnit(float value) {        // Funzione interna che limita il valore tra -1 e +1
-    if (value > 1.0F) return 1.0F;           // Se il valore supera +1, lo forza a +1
-    if (value < -1.0F) return -1.0F;         // Se il valore scende sotto -1, lo forza a -1
-    return value;                            // Altrimenti restituisce il valore originale
+    return true;
 }
 
 bool init_MPU6050() {                        // Funzione di inizializzazione del sensore
@@ -54,9 +49,16 @@ bool init_MPU6050() {                        // Funzione di inizializzazione del
 void accumulate_MPU6050_data() {
     if (!mpuReady) return;
 
-    float ax = static_cast<float>(readAxisRegister(0x3B)) / 16384.0F;
-    float ay = static_cast<float>(readAxisRegister(0x3D)) / 16384.0F;
-    float az = static_cast<float>(readAxisRegister(0x3F)) / 16384.0F;
+    int16_t ax_raw = 0;
+    int16_t ay_raw = 0;
+    int16_t az_raw = 0;
+    if (!readAccelRaw(ax_raw, ay_raw, az_raw)) {
+        return;
+    }
+
+    float ax = static_cast<float>(ax_raw) / 16384.0F;
+    float ay = static_cast<float>(ay_raw) / 16384.0F;
+    float az = static_cast<float>(az_raw) / 16384.0F;
 
     if (is_MPU6050_calibrated()) {
         const MPU6050CalibrationData calib = get_MPU6050_calibration_data();
@@ -65,12 +67,12 @@ void accumulate_MPU6050_data() {
         az = (az - calib.biasZ) * calib.scaleZ;
     }
 
-    // Invece di calcolare il TILT, ci limitiamo a mettere i dati nel "secchio"
     accumulo_ax += ax;
     accumulo_ay += ay;
     accumulo_az += az;
     contatore_letture++;
 }
+
 
 void compute_and_save_MPU6050() {
     // Se non abbiamo letto nulla o il sensore è spento, esci
@@ -129,25 +131,36 @@ bool calibrate_MPU6050_accel(uint16_t sampleCount, uint16_t sampleDelayMs) { // 
     if (!mpuReady) return false;            // Se il sensore non è pronto, non può essere calibrato
     if (sampleCount == 0) return false;     // Se il numero di campioni è zero, non ha senso procedere
 
-    float sumX = 0, sumY = 0, sumZ = 0;    // Variabili per accumulare le somme delle letture degli assi
+    float sumX = 0, sumY = 0, sumZ = 0;
+    uint16_t validSamples = 0;   // Variabili per accumulare le somme delle letture degli assi
+    
     for (uint16_t i = 0; i < sampleCount; ++i) { // Ciclo per acquisire un certo numero di campioni
-        sumX += static_cast<float>(readAxisRegister(0x3B)) / 16384.0F; // Legge e accumula l'accelerazione asse X
-        sumY += static_cast<float>(readAxisRegister(0x3D)) / 16384.0F; // Legge e accumula l'accelerazione asse Y
-        sumZ += static_cast<float>(readAxisRegister(0x3F)) / 16384.0F; // Legge e accumula l'accelerazione asse Z
+        int16_t ax_raw = 0;
+        int16_t ay_raw = 0;
+        int16_t az_raw = 0;    
+       
+        if (readAccelRaw(ax_raw, ay_raw, az_raw)) {
+            sumX += static_cast<float>(ax_raw) / 16384.0F;
+            sumY += static_cast<float>(ay_raw) / 16384.0F;
+            sumZ += static_cast<float>(az_raw) / 16384.0F;
+            validSamples++;
+        }
         delay(sampleDelayMs); // Attende un breve intervallo tra le letture per stabilizzare i dati
     }
 
-    calibrationData.biasX = sumX / sampleCount; // Calcola il bias medio sull'asse X
-    calibrationData.biasY = sumY / sampleCount; // Calcola il bias medio sull'asse Y
-    calibrationData.biasZ = (sumZ / sampleCount) - 1.0F; // Calcola il bias medio sull'asse Z, sottraendo 1g per compensare la gravità
+       const uint16_t minValidSamples = static_cast<uint16_t>((static_cast<uint32_t>(sampleCount) * 8U + 9U) / 10U);
+    if (validSamples < minValidSamples) {
+        return false;
+    }
+
+    calibrationData.biasX = sumX / static_cast<float>(validSamples); // Calcola il bias medio sull'asse X
+    calibrationData.biasY = sumY / static_cast<float>(validSamples); // Calcola il bias medio sull'asse Y
+    calibrationData.biasZ = (sumZ / static_cast<float>(validSamples)) - 1.0F; // Calcola il bias medio sull'asse Z, sottraendo 1g per compensare la gravità
 
     calibrationData.scaleX = 1.0F;
     calibrationData.scaleY = 1.0F;
     calibrationData.scaleZ = 1.0F;
     calibrationData.valid = true;
 
-
-    return true;                             // Restituisce true per indicare che la calibrazione è stata completata con successo
-    
+    return true; // Restituisce true per indicare che la calibrazione è stata completata con successo
 }
-

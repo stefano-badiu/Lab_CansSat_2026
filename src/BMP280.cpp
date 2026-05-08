@@ -4,6 +4,8 @@
 #include <Adafruit_BMP280.h> //Contiene i comandi specifici per il chip BMP280
 #include <MissionStorage.hpp> // Per salvare la pressione di riferimento P_0 e lo stato della missione in EEPROM
 #include <Arduino.h>
+#include <math.h>
+
 
 extern Telemetry current_data;
 
@@ -47,21 +49,40 @@ void reset_BMP280_flight_estimator() {
     last_altitude_time_ms = 0;
 }
 
-bool calibration_BMP280(){
-    // facciamo 15 letture e calcoliamo la media per avere un valore stabile
-    float somma_P0 = 0;
-    for(int i = 0; i < 15; i++) {
-        // leggiamo in Pascal e convertiamo in hPa per coerenza con la formula di sotto (/100)
-        somma_P0 += (bmp.readPressure() / 100.0F); 
+bool calibration_BMP280() {
+    constexpr int NUM_LETTURE = 15;
+    constexpr int MIN_LETTURE_VALIDE = 8;
+
+    constexpr float P_MIN_HPA = 800.0F;
+    constexpr float P_MAX_HPA = 1100.0F;
+
+    float somma_P0 = 0.0F;
+    int letture_valide = 0;
+
+    for (int i = 0; i < NUM_LETTURE; i++) {
+        float read_pressure = bmp.readPressure() / 100.0F;
+
+        if (!isnan(read_pressure) &&
+            !isinf(read_pressure) &&
+            read_pressure > P_MIN_HPA &&
+            read_pressure < P_MAX_HPA) {
+            somma_P0 += read_pressure;
+            letture_valide++;
+        }
+
         delay(50);
     }
-    
-    // calcolo della pressione media al suolo
-    P_0 = somma_P0 / 15.0F; 
-    save_ground_pressure(P_0);
-    reset_BMP280_flight_estimator();
 
-    return true;
+    if (letture_valide >= MIN_LETTURE_VALIDE) {
+        P_0 = somma_P0 / static_cast<float>(letture_valide);
+        save_ground_pressure(P_0);
+        reset_BMP280_flight_estimator();
+        return true;
+    }
+
+    // Fallita: non tocchiamo P_0, non tocchiamo EEPROM.
+    // Rimane in uso l'ultimo P_0 valido già presente in RAM.
+    return false;
 }
 
 

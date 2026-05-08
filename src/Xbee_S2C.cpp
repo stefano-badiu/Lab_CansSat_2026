@@ -145,14 +145,28 @@ void check_radio_commands() {
                             if (is_ground_state()) {
                             clear_saved_mission();
                             change_state(STATE_IDLE);
+                            bool bmp_calib_ok = true;
+                            bool mpu_calib_ok = true;
+
                             if (bmp_ok) {
-                             calibration_BMP280();
+                                bmp_calib_ok = calibration_BMP280();
                             }
-                            calibrate_MPU6050_accel(100, 10);
+
+                            mpu_calib_ok = calibrate_MPU6050_accel(100, 10);
                             batteryMonitor.resetEnergyCounter();
                             reset_mission_detectors();
                             manual_override = false;
-                            Serial.println(F("<ACK: RESET GENERALE E CALIBRAZIONE COMPLETATI. SISTEMA ARMATO>"));
+
+                            if (bmp_calib_ok && mpu_calib_ok) {
+                                Serial.println(F("<ACK: RESET GENERALE E CALIBRAZIONE COMPLETATI. SISTEMA ARMATO>"));
+                            } else if (!bmp_calib_ok && !mpu_calib_ok) {
+                                Serial.println(F("<WARN: RESET COMPLETATO, CALIBRAZIONE BMP E MPU FALLITA>"));
+                            } else if (!bmp_calib_ok) {
+                                Serial.println(F("<WARN: RESET COMPLETATO, CALIBRAZIONE BMP FALLITA>"));
+                            } else {
+                                Serial.println(F("<WARN: RESET COMPLETATO, CALIBRAZIONE MPU FALLITA>"));
+                            }
+
                             } else {
                             deny_in_flight();
                             }
@@ -160,11 +174,19 @@ void check_radio_commands() {
 
                     case 'C':
                             if (is_ground_state()) {
-                                if (bmp_ok) {
-                                    calibration_BMP280();
-                                    reset_mission_detectors();
-                                    Serial.println(F("<ACK: CALIBRAZIONE BAROMETRO ESEGUITA>"));
-                                }
+                            if (bmp_ok) {
+                                bool calib_ok = calibration_BMP280();
+                                reset_mission_detectors();
+
+                            if (calib_ok) {
+                                Serial.println(F("<ACK: CALIBRAZIONE BAROMETRO ESEGUITA E SALVATA>"));
+                            } else {
+                                Serial.println(F("<WARN: CALIBRAZIONE BAROMETRO FALLITA, P0 PRECEDENTE IN USO>"));
+                            }
+                            } else {
+                                Serial.println(F("<ERRORE: BMP280 NON DISPONIBILE>"));
+                        }
+
                             } else {
                                 deny_in_flight();
                             }

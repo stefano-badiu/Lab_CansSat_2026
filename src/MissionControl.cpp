@@ -165,25 +165,24 @@ bool detect_landing() {
 void init_mission_control() {
      servo_0.attach(PIN_SERVO_0);
     servo_1.attach(PIN_SERVO_1);
-    chiudi_paracadute();
 } 
 
 void change_state(FSM state){
     if (current_data.STATE == state) return;
-    current_data.STATE = state;
-    save_mission_state(state);
-
-        //&&&&&&&&&&&&&&&&&stampa seriale per test&&&&&&&&&&&&&&&&&&&
-        Serial.print(F("MISSION UPDATE: Passaggio allo stato "));
-        Serial.println(state); 
+    
     switch(state) {
         case STATE_IDLE:          photoInterval = 0;     break; // Ferma
         case STATE_ASCENT:        photoInterval = 5000; break; // 5 sec
         case STATE_DESCENT_FAST:  photoInterval = 2000;  break; // 2 sec
         case STATE_DESCENT_SLOW:  photoInterval = 2000; apri_paracadute(); break;
         case STATE_LANDED:        photoInterval = 0;     break; // Ferma
-    }    
+    } 
+    current_data.STATE = state;
+    save_mission_state(state);   
 
+    //&&&&&&&&&&&&&&&&&stampa seriale per test&&&&&&&&&&&&&&&&&&&
+        Serial.print(F("MISSION UPDATE: Passaggio allo stato "));
+        Serial.println(state); 
 
 }
 

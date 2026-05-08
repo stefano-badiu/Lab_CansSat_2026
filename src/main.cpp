@@ -24,7 +24,8 @@ SoftwareSerial SerialCamera(7, 8);
 
 void setup() {
  // inizializzazione Hardware Universale
-Wire.begin(); 
+Wire.begin();
+Wire.setClock(400000);
 Wire.setWireTimeout(25000, true);
 Serial.begin(9600); 
 SerialCamera.begin(19200); 
@@ -75,6 +76,7 @@ if (saved.valid) {
     change_state(saved.state);
 } else {
     current_data.STATE = STATE_IDLE;
+    chiudi_paracadute();
 
     if (bmp_ok && !saved.p0_valid) {
         calibration_BMP280();
