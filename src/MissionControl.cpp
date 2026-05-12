@@ -38,12 +38,13 @@ const float LANDED_MAX_ALTITUDE_M = 20.0;
 const float LANDED_MAX_ABS_VSPEED = 0.3;
 const float LANDED_MAX_ALT_DRIFT = 1.0;
 
+const unsigned long t_conferma_launch = 2000;
 
 const unsigned long t_conferma_release = 1000; // 1 secondo continuo di caduta
 
 const unsigned long t_conferma_parachute = 300;
 
-const unsigned long t_conferma = 5000; // 5 secondi 
+const unsigned long t_conferma_landing = 5000; // 5 secondi 
 
 Servo servo_0;
 Servo servo_1;
@@ -78,7 +79,7 @@ bool detect_launch() {
             launch_start_ms = millis(); // Facciamo partire il cronometro
         } 
         // Se rimaniamo sopra i 10 metri per 2 secondi continui, siamo sicuramente in volo
-        else if (millis() - launch_start_ms >= LAUNCH_CONFIRMATION_MS) {
+        else if (millis() - launch_start_ms >= t_conferma_launch) {
             return true; // Passa a STATE_ASCENT
         }
     } else {
@@ -148,7 +149,7 @@ bool detect_landing() {
         }
         
         // Se è rimasto fermo per più di 5 secondi...
-        if (millis() - landing_start_ms >= t_conferma) {
+        if (millis() - landing_start_ms >= t_conferma_landing) {
             return true; // ATTERRAGGIO CONFERMATO
         }
     } 
